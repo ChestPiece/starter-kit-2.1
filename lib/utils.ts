@@ -2,8 +2,7 @@ import { clsx, type ClassValue } from "clsx"
 import { NextRequest } from "next/server"
 import { twMerge } from "tailwind-merge"
 import React from "react"
-import { createClient } from "./supabase/client";
-import { supabaseClient } from "./supabase-auth-client";
+import { getSupabaseBrowserClient } from "./supabase-auth-client";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -30,9 +29,14 @@ export function getUserCookie(request: NextRequest) {
   return request.cookies.get('auth.user')
 }
 
-// Utility function to get current user session from Supabase
+// Utility function to get current user session from Supabase (client-side only)
 export async function getCurrentUser() {
   try {
+    // Only run on client side
+    if (typeof window === 'undefined') {
+      return null;
+    }
+    const supabaseClient = getSupabaseBrowserClient();
     const { data: { user }, error } = await supabaseClient.auth.getUser();
     if (error) throw error;
     return user;
@@ -42,9 +46,14 @@ export async function getCurrentUser() {
   }
 }
 
-// Utility function to get current session from Supabase
+// Utility function to get current session from Supabase (client-side only)
 export async function getCurrentSession() {
   try {
+    // Only run on client side
+    if (typeof window === 'undefined') {
+      return null;
+    }
+    const supabaseClient = getSupabaseBrowserClient();
     const { data: { session }, error } = await supabaseClient.auth.getSession();
     if (error) throw error;
     return session;

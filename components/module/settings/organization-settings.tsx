@@ -8,7 +8,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Settings, settingsService } from "@/modules/settings";
+import { Settings } from "@/modules/settings";
+import { settingsServiceClient } from "@/modules/settings";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { saveFile } from "@/supabase/actions/save-file";
@@ -57,10 +58,17 @@ export function OrganizationSettings({ settings }: { settings?: Settings }) {
       logo_setting: data.logo_setting,
       favicon_url: data.logo,
     };
-    const settings = await settingsService.updateSettingsById(payload);
-    setSettingOrganization(settings);
-    toast.success("Settings updated successfully");
-    window.dispatchEvent(new CustomEvent("settings-update"));
+    const updateCount = await settingsServiceClient.updateSettingsById(payload);
+    if (updateCount > 0) {
+      // Update local state with the new values
+      setSettingOrganization((prev) =>
+        prev ? { ...prev, ...payload } : undefined
+      );
+      toast.success("Settings updated successfully");
+      window.dispatchEvent(new CustomEvent("settings-update"));
+    } else {
+      toast.error("Failed to update settings");
+    }
     setLoading(false);
   };
 

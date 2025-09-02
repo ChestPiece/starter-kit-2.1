@@ -44,6 +44,9 @@ export default function SignUp() {
         lastName: formData.lastName,
       });
 
+      // Save email to localStorage for resend functionality
+      localStorage.setItem("signup_email", formData.email);
+
       // Redirect to verification page
       window.location.href = "/auth/verify";
     } catch (error) {

@@ -6,85 +6,152 @@ import Link from "next/link";
 import { Button } from "@/components/button";
 import { emailAuthService } from "@/modules/auth";
 import { toast } from "sonner";
-import { createClient } from "@/lib/supabase/client";
+import { getSupabaseClient } from "@/lib/supabase/client";
+
+type VerificationState = "checking" | "pending" | "verified" | "error";
 
 export default function Verify() {
-  const [message, setMessage] = useState("Verifying your email...");
-  const [isLoading, setIsLoading] = useState(false);
-  const [verified, setVerified] = useState(false);
+  const [state, setState] = useState<VerificationState>("checking");
+  const [message, setMessage] = useState("Checking verification status...");
+  const [isResending, setIsResending] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [countdown, setCountdown] = useState<number | null>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
 
   useEffect(() => {
-    const checkVerification = async () => {
+    const checkVerificationStatus = async () => {
       try {
-        // Only check session if we're on the client side
-        if (typeof window === "undefined") return;
+        const verified = searchParams.get("verified");
+        const error = searchParams.get("error");
 
-        const supabase = createClient();
-        const {
-          data: { session },
-          error,
-        } = await supabase.auth.getSession();
+        // Handle URL parameters from callback
+        if (verified === "true") {
+          setState("verified");
+          setMessage("Your email has been verified successfully!");
+          setCountdown(5);
+          // Clear stored email since verification is complete
+          localStorage.removeItem("signup_email");
+          return;
+        }
 
         if (error) {
-          console.error("Error getting session:", error);
-          setMessage("An error occurred during verification.");
+          setState("error");
+          switch (error) {
+            case "verification_failed":
+              setMessage(
+                "Email verification failed. Please try again or request a new verification email."
+              );
+              break;
+            case "invalid_link":
+              setMessage(
+                "Invalid verification link. Please request a new verification email."
+              );
+              break;
+            default:
+              setMessage(
+                "An error occurred during verification. Please try again."
+              );
+          }
+          return;
+        }
+
+        // Check current session and verification status
+        const supabase = getSupabaseClient();
+        const {
+          data: { session },
+          error: sessionError,
+        } = await supabase.auth.getSession();
+
+        if (sessionError) {
+          console.error("Error getting session:", sessionError);
+          setState("error");
+          setMessage(
+            "An error occurred while checking your verification status."
+          );
           return;
         }
 
         if (session?.user) {
+          setUserEmail(session.user.email || null);
+
           if (session.user.email_confirmed_at) {
+            setState("verified");
             setMessage("Your email has been verified successfully!");
-            setVerified(true);
-            // Redirect to home after 3 seconds
-            setTimeout(() => {
-              window.location.href = "/";
-            }, 3000);
+            setCountdown(5);
           } else {
+            setState("pending");
             setMessage("Please check your email for the verification link.");
-            setUserEmail(session.user.email || null);
           }
         } else {
+          // No session but still show resend option
+          setState("pending");
           setMessage("Please check your email for the verification link.");
+          // Try to get email from localStorage if available
+          const savedEmail = localStorage.getItem("signup_email");
+          if (savedEmail) {
+            setUserEmail(savedEmail);
+          }
         }
       } catch (error) {
         console.error("Error checking verification:", error);
+        setState("error");
         setMessage("An error occurred during verification.");
       }
     };
 
-    checkVerification();
+    checkVerificationStatus();
+
+    // Also set email from localStorage if not already set
+    if (!userEmail) {
+      const savedEmail = localStorage.getItem("signup_email");
+      if (savedEmail) {
+        setUserEmail(savedEmail);
+      }
+    }
 
     // Listen for auth state changes
-    const supabase = createClient();
+    const supabase = getSupabaseClient();
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === "SIGNED_IN" && session?.user?.email_confirmed_at) {
+        setState("verified");
         setMessage("Your email has been verified successfully!");
-        setVerified(true);
-        setTimeout(() => {
-          window.location.href = "/";
-        }, 3000);
+        setCountdown(5);
+        localStorage.removeItem("signup_email"); // Clean up
       }
     });
 
     return () => {
       subscription.unsubscribe();
     };
-  }, [router]);
+  }, [searchParams, userEmail]);
+
+  // Countdown effect for verified state
+  useEffect(() => {
+    if (countdown !== null && countdown > 0) {
+      const timer = setTimeout(() => {
+        setCountdown(countdown - 1);
+      }, 1000);
+      return () => clearTimeout(timer);
+    } else if (countdown === 0) {
+      router.push("/auth/login");
+    }
+  }, [countdown, router]);
 
   const handleResendConfirmation = async () => {
-    if (!userEmail) {
+    // Try to get email from state or localStorage
+    const emailToUse = userEmail || localStorage.getItem("signup_email");
+
+    if (!emailToUse) {
       toast.error("No email address found. Please try signing up again.");
       return;
     }
 
-    setIsLoading(true);
+    setIsResending(true);
     try {
-      await emailAuthService.sendEmailConfirmation(userEmail);
+      await emailAuthService.sendEmailConfirmation(emailToUse);
       toast.success("Confirmation email sent! Please check your inbox.");
       setMessage(
         "A new confirmation email has been sent. Please check your inbox."
@@ -93,28 +160,140 @@ export default function Verify() {
       console.error("Error resending confirmation:", error);
       toast.error("Failed to resend confirmation email. Please try again.");
     } finally {
-      setIsLoading(false);
+      setIsResending(false);
+    }
+  };
+
+  const getStatusIcon = () => {
+    switch (state) {
+      case "checking":
+        return (
+          <div className="flex items-center justify-center w-16 h-16 mx-auto mb-4 bg-blue-100 rounded-full">
+            <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+          </div>
+        );
+      case "verified":
+        return (
+          <div className="flex items-center justify-center w-16 h-16 mx-auto mb-4 bg-green-100 rounded-full">
+            <svg
+              className="w-8 h-8 text-green-600"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M5 13l4 4L19 7"
+              />
+            </svg>
+          </div>
+        );
+      case "error":
+        return (
+          <div className="flex items-center justify-center w-16 h-16 mx-auto mb-4 bg-red-100 rounded-full">
+            <svg
+              className="w-8 h-8 text-red-600"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </div>
+        );
+      default:
+        return (
+          <div className="flex items-center justify-center w-16 h-16 mx-auto mb-4 bg-yellow-100 rounded-full">
+            <svg
+              className="w-8 h-8 text-yellow-600"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M3 8l7.89 7.89a2 2 0 002.83 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+              />
+            </svg>
+          </div>
+        );
+    }
+  };
+
+  const getMessageColor = () => {
+    switch (state) {
+      case "verified":
+        return "text-green-600 dark:text-green-400";
+      case "error":
+        return "text-red-600 dark:text-red-400";
+      default:
+        return "text-gray-600 dark:text-gray-400";
     }
   };
 
   return (
     <div className="max-w-md w-full space-y-8 p-8 bg-sidebar rounded-lg shadow border border-sidebar-border">
-      <div>
-        <h2 className="mt-6 text-center text-3xl font-extrabold text-primary">
+      <div className="text-center">
+        {getStatusIcon()}
+        <h2 className="text-3xl font-extrabold text-primary">
           Email Verification
         </h2>
-        <p className="mt-2 text-center text-sm text-gray-600">{message}</p>
+        <p className={`mt-4 text-sm ${getMessageColor()}`}>{message}</p>
+
+        {state === "verified" && countdown !== null && (
+          <p className="mt-2 text-xs text-gray-500">
+            Redirecting to login in {countdown} seconds...
+          </p>
+        )}
       </div>
 
-      {!verified && userEmail && (
+      {(state === "pending" || state === "error") && (
         <div className="text-center space-y-4">
-          <p className="text-sm text-gray-500">Didn't receive the email?</p>
-          <Button
-            onClick={handleResendConfirmation}
-            disabled={isLoading}
-            className="w-full"
-          >
-            {isLoading ? "Sending..." : "Resend Confirmation Email"}
+          {userEmail && (
+            <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+              <p className="text-sm text-blue-700 dark:text-blue-300">
+                We sent a verification email to:
+              </p>
+              <p className="font-medium text-blue-800 dark:text-blue-200">
+                {userEmail}
+              </p>
+            </div>
+          )}
+
+          <div className="space-y-3">
+            <p className="text-sm text-gray-500">Didn't receive the email?</p>
+            <Button
+              onClick={handleResendConfirmation}
+              disabled={isResending}
+              variant="outline"
+              className="w-full"
+            >
+              {isResending ? "Sending..." : "Resend Confirmation Email"}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {state === "verified" && (
+        <div className="text-center space-y-4">
+          <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
+            <p className="text-sm text-green-700 dark:text-green-300">
+              Your email has been successfully verified! You can now log in to
+              your account.
+            </p>
+          </div>
+
+          <Button onClick={() => router.push("/auth/login")} className="w-full">
+            Continue to Login
           </Button>
         </div>
       )}
@@ -122,7 +301,7 @@ export default function Verify() {
       <div className="text-center">
         <Link
           href="/auth/login"
-          className="font-medium text-primary hover:text-primary/80"
+          className="text-sm font-medium text-primary hover:text-primary/80 underline"
         >
           Return to login
         </Link>

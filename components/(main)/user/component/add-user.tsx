@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { saveFile } from "@/supabase/actions/save-file";
-import { usersService } from "@/modules/users/services/users-service";
+import { usersServiceClient } from "@/modules/users";
 import Image from "next/image";
 import type { Role } from "@/modules/roles/models/role";
 import {
@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { createAuthUser } from "@/lib/actions/auth-actions";
-import { supabase, supabaseClient } from "@/lib/supabase-auth-client";
+import { getSupabase } from "@/lib/supabase-auth-client";
 import { toast } from "sonner";
 import { generateNameAvatar } from "@/utils/generateRandomAvatar";
 import { Avatar, ProfileBg } from "./image-setting";
@@ -155,7 +155,7 @@ export default function AddUser({
         role_id: values.role,
       };
 
-      await usersService.createUser(userData);
+      await usersServiceClient.createUser(userData);
 
       toast.success("User created successfully");
 

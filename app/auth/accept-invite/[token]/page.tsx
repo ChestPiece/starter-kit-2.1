@@ -9,7 +9,8 @@ import { Label } from "@/components/label";
 import { Input } from "@/components/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Button } from "@/components/button";
-import { Settings, settingsService } from "@/modules/settings";
+import { Settings } from "@/modules/settings/services/settings-service-unified";
+import { settingsServiceClient } from "@/modules/settings";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 
@@ -25,8 +26,10 @@ export default function Login() {
   const [settings, setSettings] = useState<Settings | null>(null);
   useEffect(() => {
     const getSettings = async () => {
-      const settings = await settingsService.getSettingsById();
-      setSettings(settings);
+      const result = await settingsServiceClient.getSettingsById();
+      if (result.success && result.data) {
+        setSettings(result.data);
+      }
     };
     getSettings();
   }, []);

@@ -1,4 +1,4 @@
-import { authService, AuthSignupData } from './services/auth-service';
+import { authServiceUnified, authService } from './services/auth-service-unified';
 import { emailAuthService } from './services/email-auth-service';
 import { 
   GET_USER_BY_ID,
@@ -6,10 +6,13 @@ import {
 } from './services/auth-graphql';
 
 export { 
+  authServiceUnified,
   authService,
   emailAuthService,
   // Export GraphQL queries and utilities
   GET_USER_BY_ID,
   UPDATE_USER_PROFILE,
 };
-export type { AuthSignupData }; 
+
+// Re-export types from unified service
+export type { AuthSignupData } from './services/auth-service-unified'; 

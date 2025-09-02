@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { getUserColumns } from "@/components/data-table/columns/column-user";
 import { UserDataTableToolbar } from "@/components/data-table/toolbars/user-toolbar";
 import { DataTable } from "@/components/data-table/data-table";
-import { usersService } from "@/modules/users/services/users-service";
+import { usersServiceClient } from "@/modules/users";
 import { User } from "@/types/types";
 import { rolesService } from "@/modules/roles/services/roles-service";
 import { Role } from "@/modules/roles/models/role";
@@ -22,7 +22,7 @@ export default function UserManagementPage({ type }: { type: string }) {
   const fetchUsers = useCallback(async () => {
     setIsRefetching(true);
     try {
-      const usersResponse: any = await usersService.getUsersPagination(
+      const usersResponse: any = await usersServiceClient.getUsersPagination(
         `%${debouncedSearchTerm}%`,
         pageSize,
         currentPage

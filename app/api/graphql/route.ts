@@ -28,8 +28,16 @@ export async function POST(req: NextRequest) {
         console.error('Error getting session from cookies:', error);
       }
     }
-    // Execute the GraphQL query using Supabase's REST API
-    const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/graphql/v1`, {
+    // Execute the GraphQL query using Supabase's GraphQL API
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    if (!supabaseUrl) {
+      return NextResponse.json(
+        { error: 'Supabase URL not configured' },
+        { status: 500 }
+      );
+    }
+
+    const response = await fetch(`${supabaseUrl}/graphql/v1`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -40,15 +48,44 @@ export async function POST(req: NextRequest) {
     });
 
     if (!response.ok) {
-      const error = await response.json();
+      const responseText = await response.text();
+      let errorMessage = 'GraphQL query failed';
+      
+      try {
+        const errorData = JSON.parse(responseText);
+        errorMessage = errorData.message || errorMessage;
+      } catch {
+        // If response is not JSON (e.g., HTML error page), provide a better error message
+        if (responseText.includes('<!DOCTYPE') || responseText.includes('<html')) {
+          errorMessage = 'GraphQL endpoint returned HTML instead of JSON. Check Supabase configuration.';
+        } else {
+          errorMessage = `GraphQL API error: ${responseText.substring(0, 200)}`;
+        }
+      }
+      
       return NextResponse.json(
-        { error: error.message || 'GraphQL query failed' },
+        { error: errorMessage },
         { status: response.status }
       );
     }
 
-    const result = await response.json();
-    return NextResponse.json({ data: result.data });
+    const responseText = await response.text();
+    try {
+      const result = JSON.parse(responseText);
+      return NextResponse.json({ data: result.data });
+    } catch (parseError) {
+      // If response is not valid JSON
+      if (responseText.includes('<!DOCTYPE') || responseText.includes('<html')) {
+        return NextResponse.json(
+          { error: 'GraphQL endpoint returned HTML instead of JSON. Check if GraphQL is enabled in Supabase.' },
+          { status: 500 }
+        );
+      }
+      return NextResponse.json(
+        { error: 'Invalid JSON response from GraphQL endpoint' },
+        { status: 500 }
+      );
+    }
   } catch (error: any) {
     console.error('GraphQL API Error:', error);
     return NextResponse.json(

@@ -11,7 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { getUserId, getUserProfile, useUserData } from "@/lib/utils";
-import { usersService } from "@/modules/users/services/users-service";
+import { usersServiceClient } from "@/modules/users";
 import { Button } from "@/components/ui/button";
 import { saveFile } from "@/supabase/actions/save-file";
 import { toast } from "sonner";
@@ -145,7 +145,7 @@ export function ProfileSettings() {
   const handleUpdateUserProfile = async () => {
     setIsLoading(true);
     try {
-      await usersService.updateUser({
+      await usersServiceClient.updateUser({
         id: userId,
         first_name: userProfile.first_name,
         last_name: userProfile.last_name,

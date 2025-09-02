@@ -72,7 +72,7 @@ export default function ForgotPassword() {
                 `w-[${settings?.logo_setting === "horizontal" ? "60%" : "30%"}] h-full object-cover rounded-md transition-opacity duration-300`,
                 isImageLoading ? "opacity-0" : "opacity-100"
               )}
-              onLoadingComplete={() => setIsImageLoading(false)}
+              onLoad={() => setIsImageLoading(false)}
               priority
             />
           </div>

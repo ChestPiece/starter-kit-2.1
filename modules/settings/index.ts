@@ -1,5 +1,6 @@
-import settingsService from './services/setting-service';
+import { settingsServiceUnified, settingsService, settingsServiceClient } from './services/settings-service-unified';
 import { Settings } from './models/setting';
 
-export { settingsService };
+// Export unified service and legacy compatibility exports
+export { settingsServiceUnified, settingsService, settingsServiceClient };
 export type { Settings }; 

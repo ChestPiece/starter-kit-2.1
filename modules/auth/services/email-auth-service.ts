@@ -1,16 +1,16 @@
-import { createClient } from "@/lib/supabase/client";
+import { getSupabaseClient } from "@/lib/supabase/client";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const emailAuthService = {
   // Send email confirmation using Supabase's built-in functionality
   sendEmailConfirmation: async (email: string) => {
     try {
-      const supabase = createClient();
+      const supabase = getSupabaseClient();
       const { error } = await supabase.auth.resend({
         type: 'signup',
         email: email,
         options: {
-          emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3010'}/auth/verify`
+          emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3010'}/api/auth/callback?type=signup&next=/auth/verify`
         }
       });
       
@@ -25,7 +25,7 @@ export const emailAuthService = {
   // Send password reset email using Supabase's built-in functionality
   sendPasswordReset: async (email: string) => {
     try {
-      const supabase = createClient();
+      const supabase = getSupabaseClient();
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3010'}/auth/reset-password`
       });
@@ -41,7 +41,7 @@ export const emailAuthService = {
   // Update password using Supabase's built-in functionality
   updatePassword: async (newPassword: string) => {
     try {
-      const supabase = createClient();
+      const supabase = getSupabaseClient();
       const { error } = await supabase.auth.updateUser({
         password: newPassword
       });
@@ -57,7 +57,7 @@ export const emailAuthService = {
   // Verify email using session
   verifyEmail: async () => {
     try {
-      const supabase = createClient();
+      const supabase = getSupabaseClient();
       const { data: { session }, error } = await supabase.auth.getSession();
       
       if (error) throw error;
@@ -77,7 +77,7 @@ export const emailAuthService = {
   // Check if email is verified
   isEmailVerified: async () => {
     try {
-      const supabase = createClient();
+      const supabase = getSupabaseClient();
       const { data: { user }, error } = await supabase.auth.getUser();
       
       if (error) throw error;

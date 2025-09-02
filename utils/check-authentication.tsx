@@ -1,9 +1,9 @@
-import { createClient } from "@/lib/supabase/client";
-import { usersService } from "@/modules/users";
+import { getSupabaseClient } from "@/lib/supabase/client";
+import { usersServiceClient } from "@/modules/users";
 
 export const checkAuthentication = async () => {
   try {
-    const supabase = createClient();
+    const supabase = getSupabaseClient();
     const {
       data: { session },
       error,
@@ -17,7 +17,7 @@ export const checkAuthentication = async () => {
     let userProfile = null;
     if (session.user) {
       try {
-        userProfile = await usersService.getUserById(session.user.id);
+        userProfile = await usersServiceClient.getUserById(session.user.id);
       } catch (error) {
         console.error("Error fetching user profile:", error);
       }

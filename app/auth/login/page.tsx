@@ -29,9 +29,16 @@ export default function Login() {
     setError(null);
 
     try {
-      await signIn(email, password);
-      // AuthContext will handle the redirect via auth state listener
-      window.location.href = "/";
+      const result = await signIn(email, password);
+
+      // Check if user is verified before redirecting
+      const user = result?.user;
+      if (user && (user as any).email_confirmed_at) {
+        window.location.href = "/";
+      } else {
+        // User is not verified, redirect to verify page
+        window.location.href = "/auth/verify";
+      }
     } catch (error) {
       setIsLoading(false);
       setError(
@@ -73,7 +80,7 @@ export default function Login() {
               style={{
                 width: settings?.logo_setting === "horizontal" ? "60%" : "30%",
               }}
-              onLoadingComplete={() => setIsImageLoading(false)}
+              onLoad={() => setIsImageLoading(false)}
               priority
             />
           </div>

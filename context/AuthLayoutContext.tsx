@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, createContext, useContext } from "react";
-import { Settings, settingsService } from "@/modules/settings";
+import { Settings } from "@/modules/settings";
+import { settingsServiceClient } from "@/modules/settings";
 
 // Create a context for auth-specific data
 interface AuthLayoutContextType {
@@ -35,7 +36,7 @@ export const AuthLayoutProvider = ({
     const getSettings = async () => {
       try {
         setIsLoadingSettings(true);
-        const fetchedSettings = await settingsService.getSettingsById();
+        const fetchedSettings = await settingsServiceClient.getSettingsById();
         setSettings(fetchedSettings);
       } catch (error) {
         // Provide fallback settings instead of logging error

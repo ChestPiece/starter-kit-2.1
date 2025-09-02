@@ -48,25 +48,36 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // Handle authenticated users accessing auth pages - redirect to home (except verify page)
+  // Handle authenticated users accessing auth pages - redirect appropriately
   if (user && (request.nextUrl.pathname === '/auth/login' || request.nextUrl.pathname === '/auth/signup')) {
     // Check if user's email is verified
     if (user.email_confirmed_at) {
+      // Verified user trying to access login/signup -> redirect to dashboard
       const url = request.nextUrl.clone()
       url.pathname = '/'
       return NextResponse.redirect(url)
     } else {
-      // Redirect to verify page if email not confirmed
+      // Unverified user trying to access login/signup -> redirect to verify page
       const url = request.nextUrl.clone()
       url.pathname = '/auth/verify'
       return NextResponse.redirect(url)
     }
   }
 
-  // Allow access to verify page for unverified users
+  // Handle verified users accessing verify page - redirect to home
   if (user && request.nextUrl.pathname === '/auth/verify' && user.email_confirmed_at) {
+    // Only redirect if there are no query parameters (to allow callback handling)
+    if (!request.nextUrl.search) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/'
+      return NextResponse.redirect(url)
+    }
+  }
+
+  // Protect main application routes - require verified users
+  if (user && !user.email_confirmed_at && !authPages.includes(request.nextUrl.pathname) && !invitePages) {
     const url = request.nextUrl.clone()
-    url.pathname = '/'
+    url.pathname = '/auth/verify'
     return NextResponse.redirect(url)
   }
 

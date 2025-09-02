@@ -24,8 +24,8 @@ import ChangePassword from "@/components/(main)/user/component/change-password";
 import { Role } from "@/modules/roles/models/role";
 import { rolesService } from "@/modules/roles/services/roles-service";
 import { deleteAuthUser } from "@/lib/actions/auth-actions";
-import { supabase } from "@/lib/supabase-auth-client";
-import { usersService } from "@/modules";
+
+import { usersServiceClient } from "@/modules/users";
 import ConfirmationDialogBox from "@/components/ui/confirmation-dialog-box";
 import { useAuth } from "@/context/AuthContext";
 
@@ -64,13 +64,12 @@ export function UserTableRowActions({
       setLoading(true);
       const action = confirmationDialog.action;
       if (action === "delete") {
-        await usersService.deleteUser(values.id);
+        await usersServiceClient.deleteUser(values.id);
         toast.success("User deleted successfully");
       } else if (action === "disable") {
-        await usersService.updateUser({
+        await usersServiceClient.updateUser({
           id: values.id,
           is_active: false,
-          project_id: values.project_id,
           profile: values.profile,
           role_id: values.role_id,
           first_name: values.first_name,
@@ -78,10 +77,9 @@ export function UserTableRowActions({
         });
         toast.success("User disabled successfully");
       } else if (action === "enable") {
-        await usersService.updateUser({
+        await usersServiceClient.updateUser({
           id: values.id,
           is_active: true,
-          project_id: values.project_id,
           profile: values.profile,
           role_id: values.role_id,
           first_name: values.first_name,

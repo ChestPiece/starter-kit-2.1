@@ -2,7 +2,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import { Toaster } from "sonner";
-import settingsService from "@/modules/settings/services/setting-service";
+import { settingsService } from "@/modules/settings";
 import { ThemeProviderWrapper } from "@/context/theme-provider-wrapper";
 import PointerEventsFix from "@/utils/pointer-events";
 
@@ -38,8 +38,11 @@ export async function generateMetadata() {
     // For metadata, we use default settings (without project_id)
     // Project-specific metadata will be handled at the page level
     // Note: getProjectId() will return null on server-side
-    let settings;
-    settings = await settingsService.getSettingsById();
+    let settings = null;
+    const result = await settingsService.getSettingsById();
+    if (result.success && result.data) {
+      settings = result.data;
+    }
 
     return {
       title: {
@@ -58,7 +61,6 @@ export async function generateMetadata() {
           settings?.favicon_url || process.env.THEME_FAV_ICON || "/favicon.ico",
       },
       manifest: "/manifest.json",
-      themeColor: settings?.primary_color || "#0070f3",
     };
   } catch (error) {
     console.error("Failed to load settings:", error);
@@ -73,6 +75,24 @@ export async function generateMetadata() {
         apple: process.env.THEME_FAV_ICON || "/favicon.ico",
       },
       manifest: "/manifest.json",
+    };
+  }
+}
+
+export async function generateViewport() {
+  try {
+    let settings = null;
+    const result = await settingsService.getSettingsById();
+    if (result.success && result.data) {
+      settings = result.data;
+    }
+
+    return {
+      themeColor: settings?.primary_color || "#0070f3",
+    };
+  } catch (error) {
+    console.error("Failed to load settings for viewport:", error);
+    return {
       themeColor: "#0070f3",
     };
   }

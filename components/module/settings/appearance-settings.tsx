@@ -6,7 +6,8 @@ import { CheckIcon, MinusIcon, Paintbrush } from "lucide-react";
 import { type Theme, useTheme } from "@/context/ThemeContext";
 import Image from "next/image";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { type Settings, settingsService } from "@/modules/settings";
+import { type Settings } from "@/modules/settings";
+import { settingsServiceClient } from "@/modules/settings";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import {
@@ -123,9 +124,15 @@ export function AppearanceSettings({ settings }: { settings?: Settings }) {
       primary_color: settingAppearance.primary_color,
       secondary_color: settingAppearance.secondary_color,
     };
-    const settings = await settingsService.updateSettingsById(payload);
-    setSettingAppearance(settings);
-    toast.success("Settings updated successfully");
+    const updateCount = await settingsServiceClient.updateSettingsById(payload);
+    if (updateCount > 0) {
+      // Update local state with the new values
+      setSettingAppearance((prev) => ({ ...prev, ...payload }));
+      toast.success("Settings updated successfully");
+      window.dispatchEvent(new CustomEvent("settings-update"));
+    } else {
+      toast.error("Failed to update settings");
+    }
     setLoading(false);
   };
 

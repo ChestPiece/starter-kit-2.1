@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { authService, AuthSignupData } from '@/modules/auth/services/auth-service';
+import { authService, AuthSignupData } from '@/modules/auth';
 
 export async function POST(request: NextRequest) {
   try {
