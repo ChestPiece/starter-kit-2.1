@@ -129,8 +129,6 @@ export class SettingsService {
           code: 'SETTINGS_FETCH_ERROR',
           message: error?.message || 'Failed to fetch settings',
           details: error,
-          timestamp: new Date().toISOString(),
-          requestId: `error_${Date.now()}`,
         }
       };
     }

@@ -41,3 +41,4 @@ BEGIN
         VALUES ('20250115_add_settings_rls_policies.sql', 'success', 'Settings RLS policies migration ran successfully.');
     END IF;
 END $$;
+

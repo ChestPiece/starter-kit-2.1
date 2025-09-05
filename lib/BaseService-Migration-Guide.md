@@ -46,21 +46,16 @@ const users = await baseService.paginate("user_profile", {
 });
 ```
 
-### GraphQL Operations
+### Pagination with Search and Sorting
 
 ```typescript
-const result = await baseService.executeGraphQL(
-  `
-  query GetUsers($limit: Int!) {
-    user_profile(limit: $limit) {
-      id
-      email
-      first_name
-    }
-  }
-`,
-  { limit: 10 }
-);
+const result = await baseService.paginate("user_profile", {
+  page: 1,
+  limit: 10,
+  search: "john",
+  searchFields: ["first_name", "last_name", "email"],
+  orderBy: { field: "created_at", ascending: false },
+});
 ```
 
 ## Migration from Old Services
@@ -71,7 +66,7 @@ const result = await baseService.executeGraphQL(
 
 ```typescript
 import { usersService } from "@/modules/users/services/users-service";
-import { usersServiceClient } from "@/modules/users/services/users-service-client";
+import { usersService } from "@/modules/users/services/users-service-client";
 ```
 
 **New:**
@@ -79,7 +74,7 @@ import { usersServiceClient } from "@/modules/users/services/users-service-clien
 ```typescript
 import { usersServiceUnified } from "@/modules/users";
 // or for legacy compatibility:
-import { usersService, usersServiceClient } from "@/modules/users";
+import { usersService, usersService } from "@/modules/users";
 ```
 
 ### Settings Service
@@ -186,9 +181,9 @@ const customService = BaseService.getInstance({
 
 The following files have been removed as they're now handled by BaseService:
 
-- `lib/graphql-client.ts` → Use `baseService.executeGraphQL()`
-- `lib/graphql-server.ts` → Use `baseService.executeGraphQL()`
-- `hooks/useGraphQL.ts` → Use `baseService` directly
+- `lib/graphql-client.ts` → Removed in favor of direct Supabase calls
+- `lib/graphql-server.ts` → Removed in favor of direct Supabase calls
+- `hooks/useGraphQL.ts` → Use `baseService` directly for database operations
 - `modules/users/services/users-service.ts` → Use `usersServiceUnified`
 - `modules/users/services/users-service-client.ts` → Use `usersServiceUnified`
 - `modules/settings/services/setting-service.ts` → Use `settingsServiceUnified`

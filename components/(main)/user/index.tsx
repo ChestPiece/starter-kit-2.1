@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { getUserColumns } from "@/components/data-table/columns/column-user";
 import { UserDataTableToolbar } from "@/components/data-table/toolbars/user-toolbar";
 import { DataTable } from "@/components/data-table/data-table";
-import { usersServiceClient } from "@/modules/users";
+import { usersService } from "@/modules/users";
 import { User } from "@/types/types";
 import { rolesService } from "@/modules/roles/services/roles-service";
 import { Role } from "@/modules/roles/models/role";
@@ -22,16 +22,40 @@ export default function UserManagementPage({ type }: { type: string }) {
   const fetchUsers = useCallback(async () => {
     setIsRefetching(true);
     try {
-      const usersResponse: any = await usersServiceClient.getUsersPagination(
-        `%${debouncedSearchTerm}%`,
+      console.log("Fetching users with params:", {
+        search: debouncedSearchTerm,
+        page: currentPage + 1,
         pageSize,
-        currentPage
+      });
+
+      const usersResponse: any = await usersService.getUsersPaginated(
+        debouncedSearchTerm,
+        currentPage + 1, // Convert from 0-based to 1-based pagination
+        pageSize
       );
 
-      setListUsers(usersResponse.users);
-      setRecordCount(usersResponse.totalCount);
+      console.log("Users response:", usersResponse);
+
+      if (!usersResponse || typeof usersResponse !== "object") {
+        console.error(
+          "Invalid response format from getUsersPaginated:",
+          usersResponse
+        );
+        setListUsers([]);
+        setRecordCount(0);
+        return;
+      }
+
+      setListUsers(
+        Array.isArray(usersResponse.users) ? usersResponse.users : []
+      );
+      setRecordCount(
+        typeof usersResponse.total === "number" ? usersResponse.total : 0
+      );
     } catch (error) {
       console.error("Error fetching users:", error);
+      setListUsers([]);
+      setRecordCount(0);
     } finally {
       setIsRefetching(false);
     }

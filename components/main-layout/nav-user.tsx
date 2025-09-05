@@ -93,8 +93,16 @@ export function NavUser({ user }: { user: User | null }) {
               <DropdownMenuItem
                 className="cursor-pointer"
                 onClick={async () => {
-                  await signOut();
-                  router.push("/auth/login");
+                  try {
+                    const { clearAuthSession } = await import(
+                      "@/utils/clear-auth-session"
+                    );
+                    await clearAuthSession();
+                  } catch (error) {
+                    console.error("Logout error:", error);
+                    await signOut();
+                    window.location.href = "/auth/login";
+                  }
                 }}
               >
                 <LogOut />

@@ -37,15 +37,23 @@ export default function SignUp() {
     setError(null);
 
     try {
-      await signUp({
+      const result = await signUp({
         email: formData.email,
         password: formData.password,
         firstName: formData.firstName,
         lastName: formData.lastName,
       });
 
+      if (!result) {
+        throw new Error("Registration failed");
+      }
+
       // Save email to localStorage for resend functionality
       localStorage.setItem("signup_email", formData.email);
+
+      // Also save first name and last name for profile creation
+      localStorage.setItem("signup_firstName", formData.firstName);
+      localStorage.setItem("signup_lastName", formData.lastName);
 
       // Redirect to verification page
       window.location.href = "/auth/verify";
@@ -188,6 +196,8 @@ export default function SignUp() {
             Already have an account?{" "}
             <Link
               href="/auth/login"
+              prefetch={true}
+              replace={true}
               className="text-primary hover:underline cursor-pointer"
             >
               Sign in

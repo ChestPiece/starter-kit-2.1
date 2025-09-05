@@ -22,7 +22,7 @@ export default function Login() {
   const [isLoading, setIsLoading] = useState(false);
   const [isImageLoading, setIsImageLoading] = useState(true);
   const router = useRouter();
-  const { acceptInvite } = useAuth();
+  // const { acceptInvite } = useAuth(); // Functionality not implemented
   const [settings, setSettings] = useState<Settings | null>(null);
   useEffect(() => {
     const getSettings = async () => {
@@ -39,7 +39,8 @@ export default function Login() {
     setError(null);
 
     try {
-      await acceptInvite(token as string, password);
+      // await acceptInvite(token as string, password); // Functionality not implemented
+      setError("Accept invite functionality is not yet implemented");
       // AuthContext will handle the redirect via auth state listener
       window.location.href = "/";
     } catch (error) {

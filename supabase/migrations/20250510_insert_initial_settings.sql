@@ -47,3 +47,4 @@ BEGIN
         VALUES ('20250510_insert_initial_settings.sql', 'success', 'Initial settings data migration ran successfully.');
     END IF;
 END $$;
+

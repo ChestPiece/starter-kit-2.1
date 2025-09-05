@@ -58,8 +58,8 @@ export function OrganizationSettings({ settings }: { settings?: Settings }) {
       logo_setting: data.logo_setting,
       favicon_url: data.logo,
     };
-    const updateCount = await settingsServiceClient.updateSettingsById(payload);
-    if (updateCount > 0) {
+    const updateResult = await settingsServiceClient.updateSettingsById(payload);
+    if (updateResult.success) {
       // Update local state with the new values
       setSettingOrganization((prev) =>
         prev ? { ...prev, ...payload } : undefined

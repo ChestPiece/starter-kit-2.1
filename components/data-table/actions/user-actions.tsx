@@ -25,7 +25,7 @@ import { Role } from "@/modules/roles/models/role";
 import { rolesService } from "@/modules/roles/services/roles-service";
 import { deleteAuthUser } from "@/lib/actions/auth-actions";
 
-import { usersServiceClient } from "@/modules/users";
+import { usersService } from "@/modules/users";
 import ConfirmationDialogBox from "@/components/ui/confirmation-dialog-box";
 import { useAuth } from "@/context/AuthContext";
 
@@ -64,11 +64,10 @@ export function UserTableRowActions({
       setLoading(true);
       const action = confirmationDialog.action;
       if (action === "delete") {
-        await usersServiceClient.deleteUser(values.id);
+        await usersService.deleteUser(values.id);
         toast.success("User deleted successfully");
       } else if (action === "disable") {
-        await usersServiceClient.updateUser({
-          id: values.id,
+        await usersService.updateUser(values.id, {
           is_active: false,
           profile: values.profile,
           role_id: values.role_id,
@@ -77,8 +76,7 @@ export function UserTableRowActions({
         });
         toast.success("User disabled successfully");
       } else if (action === "enable") {
-        await usersServiceClient.updateUser({
-          id: values.id,
+        await usersService.updateUser(values.id, {
           is_active: true,
           profile: values.profile,
           role_id: values.role_id,

@@ -11,7 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { getUserId, getUserProfile, useUserData } from "@/lib/utils";
-import { usersServiceClient } from "@/modules/users";
+import { usersService } from "@/modules/users";
 import { Button } from "@/components/ui/button";
 import { saveFile } from "@/supabase/actions/save-file";
 import { toast } from "sonner";
@@ -50,17 +50,26 @@ export type UserProfile = {
 };
 
 export function ProfileSettings() {
-  const userId = getUserId();
+  const [userId, setUserId] = useState<string | undefined>(undefined);
   const { userProfile: userProfileAuth, setUserProfile: setUserProfileAuth } =
     useAuth();
-  const [userProfile, setUserProfile] = useState<UserProfile>(getUserProfile());
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(
+    getUserProfile() || {
+      first_name: "",
+      last_name: "",
+      email: "",
+      profile: undefined,
+    }
+  );
 
   useEffect(() => {
     const fetchUserData = async () => {
+      const id = await getUserId();
+      setUserId(id);
       setUserProfile(userProfileAuth as UserProfile);
     };
     fetchUserData();
-  }, [userId, userProfileAuth]);
+  }, [userProfileAuth]);
 
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -116,10 +125,13 @@ export function ProfileSettings() {
       // Upload the file to server/storage
       const fileUrl = await saveFile(file);
       if (fileUrl) {
-        setUserProfile((prev) => ({
-          ...prev,
-          profile: fileUrl,
-        }));
+        setUserProfile((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            profile: fileUrl,
+          };
+        });
       }
 
       // Close the dialog
@@ -143,18 +155,27 @@ export function ProfileSettings() {
   }, [fileId]);
 
   const handleUpdateUserProfile = async () => {
+    if (!userId) {
+      toast.error("User ID not found");
+      return;
+    }
+
+    if (!userProfile) {
+      toast.error("User profile not loaded");
+      return;
+    }
+
     setIsLoading(true);
     try {
-      await usersServiceClient.updateUser({
-        id: userId,
-        first_name: userProfile.first_name,
-        last_name: userProfile.last_name,
-        profile: userProfile.profile ?? null,
+      await usersService.updateUser(userId, {
+        first_name: userProfile.first_name || "",
+        last_name: userProfile.last_name || "",
+        profile: userProfile.profile ?? undefined,
       });
       setUserProfileAuth({
-        ...userProfileAuth,
-        first_name: userProfile.first_name,
-        last_name: userProfile.last_name,
+        ...userProfileAuth!,
+        first_name: userProfile.first_name || "",
+        last_name: userProfile.last_name || "",
         profile: userProfile.profile,
       });
       toast.success("Profile updated successfully");
@@ -167,10 +188,13 @@ export function ProfileSettings() {
   };
 
   const handleRemoveAvatar = () => {
-    setUserProfile((prev) => ({
-      ...prev,
-      profile: undefined,
-    }));
+    setUserProfile((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        profile: undefined,
+      };
+    });
   };
 
   return (
@@ -195,10 +219,10 @@ export function ProfileSettings() {
                 onDrop={handleDrop}
                 data-dragging={isDragging || undefined}
                 aria-label={
-                  userProfile.profile ? "Change image" : "Upload image"
+                  userProfile?.profile ? "Change image" : "Upload image"
                 }
               >
-                {userProfile.profile ? (
+                {userProfile?.profile ? (
                   <Image
                     className="h-full w-full object-cover"
                     src={userProfile.profile}
@@ -212,7 +236,7 @@ export function ProfileSettings() {
                   </div>
                 )}
               </button>
-              {userProfile.profile && (
+              {userProfile?.profile && (
                 <Button
                   onClick={handleRemoveAvatar}
                   size="icon"
@@ -249,10 +273,10 @@ export function ProfileSettings() {
               <Input
                 id="first-name"
                 placeholder="Enter first name"
-                value={userProfile.first_name}
+                value={userProfile?.first_name || ""}
                 onChange={(e) =>
                   setUserProfile((prev) => ({
-                    ...prev,
+                    ...prev!,
                     first_name: e.target.value,
                   }))
                 }
@@ -263,10 +287,10 @@ export function ProfileSettings() {
               <Input
                 id="last-name"
                 placeholder="Enter last name"
-                value={userProfile.last_name}
+                value={userProfile?.last_name || ""}
                 onChange={(e) =>
                   setUserProfile((prev) => ({
-                    ...prev,
+                    ...prev!,
                     last_name: e.target.value,
                   }))
                 }
@@ -289,7 +313,7 @@ export function ProfileSettings() {
               id="email"
               type="email"
               placeholder="Enter email address"
-              value={userProfile.email}
+              value={userProfile?.email || ""}
               disabled
               className="bg-muted/50"
             />

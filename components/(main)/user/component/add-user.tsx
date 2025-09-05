@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { saveFile } from "@/supabase/actions/save-file";
-import { usersServiceClient } from "@/modules/users";
+import { usersService } from "@/modules/users";
 import Image from "next/image";
 import type { Role } from "@/modules/roles/models/role";
 import {
@@ -153,9 +153,10 @@ export default function AddUser({
         email: values.email,
         profile: profile || "",
         role_id: values.role,
+        is_active: true,
       };
 
-      await usersServiceClient.createUser(userData);
+      await usersService.createUser(userData);
 
       toast.success("User created successfully");
 

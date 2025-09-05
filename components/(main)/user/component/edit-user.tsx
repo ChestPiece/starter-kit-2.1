@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { User } from "@/types/types";
 import { saveFile } from "@/supabase/actions/save-file";
-import { usersServiceClient } from "@/modules/users";
+import { usersService } from "@/modules/users";
 import Image from "next/image";
 import type { Role } from "@/modules/roles/models/role";
 import {
@@ -129,7 +129,7 @@ export default function EditUser({
         is_active: userData.is_active,
       };
 
-      await usersServiceClient.updateUser(updatedUserData);
+      await usersService.updateUser(userData.id, updatedUserData);
       toast.success("User updated successfully");
       if (onOpenChange) onOpenChange(false);
       fetchUser();

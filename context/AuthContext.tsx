@@ -1,15 +1,25 @@
 "use client";
+
+// Add global type for the auth initialization flag
+declare global {
+  interface Window {
+    __SUPABASE_AUTH_INITIALIZED?: boolean;
+  }
+}
+
 import {
   createContext,
   useContext,
   useEffect,
   useState,
   useCallback,
+  useMemo,
 } from "react";
 import { Session, WeakPassword } from "@supabase/supabase-js";
-import { authService, AuthSignupData } from "@/modules/auth";
+import { authService, AuthSignupData, AuthResponse } from "@/modules/auth";
+import { ServiceResponse } from "@/lib/BaseService";
 import { getSupabaseClient } from "@/lib/supabase/client";
-import { usersServiceClient } from "@/modules/users";
+import { usersService } from "@/modules/users";
 import { User } from "@/types/types";
 import { Settings } from "@/modules/settings";
 import { settingsServiceClient } from "@/modules/settings";
@@ -18,7 +28,9 @@ import {
   UserSessionManager,
   REALTIME_CONFIG,
 } from "@/utils/user-session-manager";
+import { useRouter, usePathname } from "next/navigation";
 import { toast } from "sonner";
+import { clearAuthSession } from "@/utils/clear-auth-session";
 
 type AuthContextType = {
   user: User | null;
@@ -26,15 +38,10 @@ type AuthContextType = {
   session: Session | null;
   loading: boolean;
   settings: Settings | null;
-  signUp: (
-    data: AuthSignupData
-  ) => Promise<{ user: User | null; session: Session | null } | { user: User }>;
-  signIn: (
-    email: string,
-    password: string
-  ) => Promise<{ user: User; session: Session; weakPassword?: WeakPassword }>;
+  signUp: (data: AuthSignupData) => Promise<AuthResponse | null>;
+  signIn: (email: string, password: string) => Promise<AuthResponse | null>;
   signOut: () => Promise<void>;
-  acceptInvite: (token: string, password: string) => Promise<any>;
+
   setUser: (user: User | null) => void;
   setUserProfile: (userProfile: any | null) => void;
   setSettings: (settings: Settings | null) => void;
@@ -51,16 +58,24 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [userProfile, setUserProfile] = useState<any | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [initialized, setInitialized] = useState(false);
   const [settings, setSettings] = useState<Settings | null>(null);
 
+  const router = useRouter();
+  const pathname = usePathname();
+
   // Define public routes that don't require authentication
-  const PUBLIC_ROUTES = [
-    "/auth/login",
-    "/auth/sign-up",
-    "/auth/forgot-password",
-    "/auth/reset-password",
-    "/auth/accept-invite",
-  ];
+  const PUBLIC_ROUTES = useMemo(
+    () => [
+      "/auth/login",
+      "/auth/sign-up",
+      "/auth/signup",
+      "/auth/forgot-password",
+      "/auth/reset-password",
+      "/auth/verify",
+    ],
+    []
+  );
 
   // Define routes that authenticated users should be redirected from (e.g., login page)
   const AUTH_ROUTES = ["/auth/login", "/auth/sign-up"];
@@ -74,20 +89,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         return { isValid: true, shouldLogout: false }; // Don't validate unverified users
 
       try {
-        const userData = await usersServiceClient.getUserById(supabaseUser.id);
+        const userData = await usersService.getUserById(supabaseUser.id);
 
         // Check if user exists and is active
-        if (!userData || !userData.is_active) {
-          console.log(
-            "User not found or inactive in database, will log out..."
-          );
+        if (!userData.success || !userData.data || !userData.data.is_active) {
           return { isValid: false, shouldLogout: true };
         }
 
         return { isValid: true, shouldLogout: false };
       } catch (error) {
         console.error("Error validating user in database:", error);
-        // On validation error, log out for security
         return { isValid: false, shouldLogout: true };
       }
     },
@@ -107,8 +118,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             // Validate user exists in database first
             const validation = await validateUserInDatabase(supabaseUser);
             if (validation.shouldLogout) {
-              console.log("User validation failed, logging out...");
-              setLoading(false); // Set loading to false before logout
+              setLoading(false);
               setSession(null);
               setUser(null);
               setUserProfile(null);
@@ -124,12 +134,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
             // Fetch user profile data from user_profile table
             try {
-              const userData = await usersServiceClient.getUserById(
-                supabaseUser.id
-              );
-              if (userData && isMounted.current) {
+              const userData = await usersService.getUserById(supabaseUser.id);
+              if (userData.success && userData.data && isMounted.current) {
                 // Check if user is still active
-                if (!userData.is_active) {
+                if (!userData.data.is_active) {
                   console.log("User is no longer active, logging out...");
                   if (isMounted.current) {
                     setLoading(false);
@@ -140,8 +148,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                   await authService.signOut();
                   return;
                 }
-                setUserProfile(userData);
-              } else if (!userData && isMounted.current) {
+                setUserProfile(userData.data);
+              } else if (!userData.success && isMounted.current) {
                 // User doesn't exist in database but has Supabase session
                 console.log("User not found in database, logging out...");
                 setLoading(false);
@@ -172,8 +180,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             if (!settings) {
               const settingsData =
                 await settingsServiceClient.getSettingsById();
-              if (settingsData && isMounted.current) {
-                setSettings(settingsData);
+              if (
+                settingsData.success &&
+                settingsData.data &&
+                isMounted.current
+              ) {
+                setSettings(settingsData.data);
               }
             }
           }
@@ -196,13 +208,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     if (typeof window === "undefined") return;
 
     // Use singleton client instance to avoid multiple GoTrueClient instances
+    // Only initialize auth once to prevent duplicate event handlers
+    if (window.__SUPABASE_AUTH_INITIALIZED) return;
+    window.__SUPABASE_AUTH_INITIALIZED = true;
+
     const supabase = getSupabaseClient();
     const isMounted = { current: true };
 
-    // Get initial session
+    // Get initial session - simple, no rate limiting
     const getInitialSession = async () => {
       try {
-        if (!isMounted.current) return;
+        if (!isMounted.current || initialized) return;
+
         setLoading(true);
 
         const {
@@ -213,11 +230,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         if (!isMounted.current) return;
 
         if (error) {
-          // Only log in development mode
-          if (process.env.NODE_ENV === "development") {
-            console.error("Error getting session:", error);
-          }
+          console.warn("Auth session error:", error.message);
+          setSession(null);
+          setUser(null);
+          setUserProfile(null);
           setLoading(false);
+          setInitialized(true);
           return;
         }
 
@@ -228,23 +246,23 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             await fetchUserData(session.user, isMounted);
           }
         } else {
-          // No session found
           setSession(null);
           setUser(null);
           setUserProfile(null);
-          // Don't clear settings here - let auth layout handle it
         }
 
         if (isMounted.current) {
           setLoading(false);
+          setInitialized(true);
         }
       } catch (error) {
-        // Only log in development mode
-        if (process.env.NODE_ENV === "development") {
-          console.error("Error in getInitialSession:", error);
-        }
+        console.warn("Error in getInitialSession:", error);
         if (isMounted.current) {
+          setSession(null);
+          setUser(null);
+          setUserProfile(null);
           setLoading(false);
+          setInitialized(true);
         }
       }
     };
@@ -254,59 +272,33 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     // Fallback timeout to ensure loading never gets stuck
     const loadingTimeout = setTimeout(() => {
       if (isMounted.current) {
-        console.warn("Loading timeout reached, setting loading to false");
         setLoading(false);
       }
     }, 10000); // 10 second timeout
 
-    // Listen for auth state changes using the same client instance
+    // Listen for auth state changes - simple handling
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!isMounted.current) return;
 
-      // Only log meaningful auth state changes in development mode
-      if (
-        process.env.NODE_ENV === "development" &&
-        event !== "INITIAL_SESSION"
-      ) {
-        console.log(
-          "Auth state changed:",
-          event,
-          session?.user?.email || "no user"
-        );
-      }
-
-      // Set loading to true only for sign-in events that need data fetching
-      if (event === "SIGNED_IN" && session?.user?.email_confirmed_at) {
-        setLoading(true);
-      }
-
-      if (session) {
-        setSession(session);
-        setUser(session.user);
-        // Only fetch user data for verified users to prevent errors
-        if (session.user.email_confirmed_at) {
-          await fetchUserData(session.user, isMounted);
-        } else {
-          // For unverified users, just set loading to false
-          if (isMounted.current) {
-            setLoading(false);
+      // Handle auth state changes immediately but only if initialized
+      if (initialized) {
+        if (session) {
+          setSession(session);
+          setUser(session.user);
+          if (session.user.email_confirmed_at) {
+            await fetchUserData(session.user, isMounted);
           }
+        } else {
+          setSession(null);
+          setUser(null);
+          setUserProfile(null);
         }
-      } else {
-        setSession(null);
-        setUser(null);
-        setUserProfile(null);
-        // Don't clear settings on sign out - they can be reused
+
         if (isMounted.current) {
           setLoading(false);
         }
-      }
-
-      // Ensure loading is always set to false after auth state change processing
-      if (isMounted.current) {
-        setLoading(false);
       }
     });
 
@@ -315,7 +307,29 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       subscription.unsubscribe();
       clearTimeout(loadingTimeout);
     };
-  }, [fetchUserData]);
+  }, [fetchUserData, initialized]);
+
+  // Handle client-side routing based on auth state
+  useEffect(() => {
+    if (!initialized || loading) return;
+
+    const isAuthPage = PUBLIC_ROUTES.includes(pathname);
+
+    if (!user && !isAuthPage) {
+      // Not logged in and trying to access protected page
+      router.push("/auth/login");
+    } else if (user && isAuthPage && pathname !== "/auth/verify") {
+      // Logged in but on auth page (except verify)
+      router.push("/");
+    } else if (
+      user &&
+      !(user as any).email_confirmed_at &&
+      pathname !== "/auth/verify"
+    ) {
+      // User not verified
+      router.push("/auth/verify");
+    }
+  }, [user, pathname, initialized, loading, router, PUBLIC_ROUTES]);
 
   // Set up real-time subscriptions for user changes
   useEffect(() => {
@@ -324,9 +338,30 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const supabase = getSupabaseClient();
     let subscription: any = null;
     let periodicValidation: NodeJS.Timeout | null = null;
+    let reconnectTimer: NodeJS.Timeout | null = null;
+    let isConnecting = false;
+    let reconnectAttempts = 0;
+    const MAX_RECONNECT_ATTEMPTS = 5;
+    const INITIAL_RECONNECT_DELAY = 1000;
 
     const setupRealTimeSubscription = async () => {
+      // Prevent multiple simultaneous connection attempts
+      if (isConnecting) return;
+      isConnecting = true;
+
       try {
+        // Add tracking for connection attempts
+        reconnectAttempts++;
+        const subscriptionId = `sub_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+        console.log(
+          `[REALTIME:${subscriptionId}] Setting up real-time subscription, attempt ${reconnectAttempts}`,
+          {
+            userId: user.id,
+            channelName: REALTIME_CONFIG.getUserChannelName(user.id),
+            timestamp: new Date().toISOString(),
+          }
+        );
+
         // Subscribe to changes in the users table for the current user
         subscription = supabase
           .channel(REALTIME_CONFIG.getUserChannelName(user.id))
@@ -339,10 +374,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
               filter: `id=eq.${user.id}`,
             },
             (payload: any) => {
-              console.log("User table change detected:", payload);
+              console.log(
+                `[REALTIME:${subscriptionId}] User table change detected:`,
+                {
+                  eventType: payload.eventType,
+                  table: payload.table,
+                  schema: payload.schema,
+                  timestamp: new Date().toISOString(),
+                }
+              );
 
               if (payload.eventType === "DELETE") {
-                console.log("Real-time: User deleted from database");
+                console.log(
+                  `[REALTIME:${subscriptionId}] User deleted from database`
+                );
                 setLoading(false);
                 setSession(null);
                 setUser(null);
@@ -357,10 +402,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
               if (payload.eventType === "UPDATE") {
                 const updatedUser = payload.new as any;
+                console.log(`[REALTIME:${subscriptionId}] User updated:`, {
+                  isActive: updatedUser.is_active,
+                  timestamp: new Date().toISOString(),
+                });
 
                 // Check if user was deactivated
                 if (!updatedUser.is_active) {
-                  console.log("Real-time: User deactivated");
+                  console.log(`[REALTIME:${subscriptionId}] User deactivated`);
                   setLoading(false);
                   setSession(null);
                   setUser(null);
@@ -384,57 +433,169 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           .subscribe((status: string) => {
             if (status === "SUBSCRIBED") {
               console.log(
-                "Real-time subscription established for user:",
-                user.email
+                `[REALTIME:${subscriptionId}] Real-time subscription established`,
+                {
+                  userId: user.id,
+                  email: user.email,
+                  timestamp: new Date().toISOString(),
+                }
               );
-              toast.success("Connected to real-time updates", {
-                duration: 2000,
-              });
+
+              // Reset reconnect attempts on successful connection
+              reconnectAttempts = 0;
+              isConnecting = false;
             } else if (status === "CHANNEL_ERROR") {
               console.error(
-                "Real-time subscription error for user:",
-                user.email
+                `[REALTIME:${subscriptionId}] Real-time subscription error`,
+                {
+                  userId: user.id,
+                  email: user.email,
+                  timestamp: new Date().toISOString(),
+                }
               );
-              toast.error("Real-time connection failed", {
-                duration: 3000,
-              });
+
+              isConnecting = false;
+
+              // Attempt to reconnect with exponential backoff
+              if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+                const delay =
+                  INITIAL_RECONNECT_DELAY * Math.pow(2, reconnectAttempts - 1);
+                console.log(
+                  `[REALTIME:${subscriptionId}] Will attempt to reconnect in ${delay}ms`
+                );
+
+                // Clear any existing reconnect timer
+                if (reconnectTimer) clearTimeout(reconnectTimer);
+
+                reconnectTimer = setTimeout(() => {
+                  console.log(
+                    `[REALTIME:${subscriptionId}] Attempting to reconnect...`
+                  );
+
+                  // Cleanup old subscription before reconnecting
+                  if (subscription) {
+                    try {
+                      supabase.removeChannel(subscription);
+                    } catch (e) {
+                      console.error(
+                        `[REALTIME:${subscriptionId}] Error removing channel:`,
+                        e
+                      );
+                    }
+                    subscription = null;
+                  }
+
+                  // Try to reconnect
+                  setupRealTimeSubscription();
+                }, delay);
+              } else {
+                console.error(
+                  `[REALTIME:${subscriptionId}] Maximum reconnection attempts reached`
+                );
+              }
             }
           });
 
-        // Set up periodic validation
+        // Set up periodic validation with improved logging
+        const validationId = `val_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
         periodicValidation = setInterval(async () => {
           if ((user as any)?.email_confirmed_at) {
-            console.log("Performing periodic user validation...");
-            const sessionValidation =
-              await UserSessionManager.validateUserSession(
-                user.id,
-                usersServiceClient.getUserById
-              );
+            console.log(
+              `[VALIDATION:${validationId}] Performing periodic user validation`,
+              {
+                userId: user.id,
+                interval: `${REALTIME_CONFIG.VALIDATION_INTERVAL / 1000}s`,
+                timestamp: new Date().toISOString(),
+              }
+            );
 
-            if (!sessionValidation.isValid) {
-              console.log("Periodic validation failed, logging user out");
-              await UserSessionManager.handleUserLogout(
-                sessionValidation.reason || "Session validation failed",
-                "/auth/login"
+            try {
+              const startTime = performance.now();
+              const sessionValidation =
+                await UserSessionManager.validateUserSession(
+                  user.id,
+                  usersService.getUserById
+                );
+              const duration = Math.round(performance.now() - startTime);
+
+              if (!sessionValidation.isValid) {
+                console.log(
+                  `[VALIDATION:${validationId}] Periodic validation failed, logging user out`,
+                  {
+                    userId: user.id,
+                    reason:
+                      sessionValidation.reason || "Session validation failed",
+                    duration: `${duration}ms`,
+                    timestamp: new Date().toISOString(),
+                  }
+                );
+                await UserSessionManager.handleUserLogout(
+                  sessionValidation.reason || "Session validation failed",
+                  "/auth/login"
+                );
+                await authService.signOut();
+              } else {
+                console.log(
+                  `[VALIDATION:${validationId}] Periodic validation passed`,
+                  {
+                    userId: user.id,
+                    duration: `${duration}ms`,
+                    timestamp: new Date().toISOString(),
+                  }
+                );
+              }
+            } catch (error) {
+              console.error(
+                `[VALIDATION:${validationId}] Error during validation:`,
+                {
+                  error:
+                    error instanceof Error ? error.message : "Unknown error",
+                  userId: user.id,
+                  timestamp: new Date().toISOString(),
+                }
               );
-              await authService.signOut();
             }
           }
         }, REALTIME_CONFIG.VALIDATION_INTERVAL);
       } catch (error) {
-        console.error("Error setting up real-time subscription:", error);
+        console.error(`[REALTIME] Error setting up real-time subscription:`, {
+          error: error instanceof Error ? error.message : "Unknown error",
+          userId: user.id,
+          timestamp: new Date().toISOString(),
+        });
+        isConnecting = false;
       }
     };
 
+    // Initial setup
     setupRealTimeSubscription();
 
-    // Cleanup function
+    // Enhanced cleanup function
     return () => {
-      if (subscription) {
-        supabase.removeChannel(subscription);
+      console.log("[REALTIME] Cleaning up real-time subscriptions", {
+        userId: user.id,
+        timestamp: new Date().toISOString(),
+      });
+
+      // Clear all timers
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
       }
+
       if (periodicValidation) {
         clearInterval(periodicValidation);
+        periodicValidation = null;
+      }
+
+      // Remove subscription properly
+      if (subscription) {
+        try {
+          supabase.removeChannel(subscription);
+        } catch (e) {
+          console.error("[REALTIME] Error removing channel during cleanup:", e);
+        }
+        subscription = null;
       }
     };
   }, [user, validateUserInDatabase]);
@@ -444,7 +605,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const handleSettingsUpdate = async () => {
       try {
         const fetchedSettings = await settingsServiceClient.getSettingsById();
-        setSettings(fetchedSettings);
+        if (fetchedSettings.success && fetchedSettings.data) {
+          setSettings(fetchedSettings.data);
+        }
       } catch (error) {
         console.error("Failed to fetch settings:", error);
       }
@@ -481,23 +644,22 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const signOut = async () => {
     try {
       setLoading(true);
-      await authService.signOut();
-      // Supabase auth state listener will handle clearing user state
-      // Middleware will handle redirect to login page
+      // Use the more thorough clear auth session utility
+      const { clearAuthSession } = await import("@/utils/clear-auth-session");
+      await clearAuthSession();
+
+      // These will run only if clearAuthSession doesn't redirect
+      setSession(null);
+      setUser(null);
+      setUserProfile(null);
+      setLoading(false);
+      return;
     } catch (error) {
       setLoading(false);
       console.error("Sign out error:", error);
-      throw error;
-    }
-  };
 
-  const acceptInvite = async (token: string, password: string) => {
-    try {
-      const result = await authService.acceptInvite(token, password);
-      // Supabase auth state listener will handle setting user state
-      return result;
-    } catch (error) {
-      console.error("Accept invite error:", error);
+      // As a last resort, force a redirect
+      window.location.href = "/auth/login";
       throw error;
     }
   };
@@ -521,7 +683,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setUserProfile,
     signIn,
     signOut,
-    acceptInvite,
     setUser,
     setSettings,
   };

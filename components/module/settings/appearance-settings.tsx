@@ -91,6 +91,7 @@ export function AppearanceSettings({ settings }: { settings?: Settings }) {
         site_description: settings?.site_description || "",
         site_image: settings?.site_image || "",
         logo_url: settings?.logo_url || "",
+        logo_horizontal_url: settings?.logo_horizontal_url || "",
         favicon_url: settings?.favicon_url || "",
         meta_keywords: settings?.meta_keywords || "",
         meta_description: settings?.meta_description || "",
@@ -119,13 +120,24 @@ export function AppearanceSettings({ settings }: { settings?: Settings }) {
 
   const submitSettings = async (data: any) => {
     setLoading(true);
-    const payload = {
-      appearance_theme: settingAppearance.appearance_theme,
-      primary_color: settingAppearance.primary_color,
-      secondary_color: settingAppearance.secondary_color,
+    const payload: {
+      appearance_theme: "light" | "dark" | "system";
+      primary_color: string;
+      secondary_color: string;
+    } = {
+      appearance_theme:
+        settingAppearance.appearance_theme === "light" ||
+        settingAppearance.appearance_theme === "dark" ||
+        settingAppearance.appearance_theme === "system"
+          ? settingAppearance.appearance_theme
+          : "light",
+      primary_color: settingAppearance.primary_color || defaultPrimaryColor,
+      secondary_color:
+        settingAppearance.secondary_color || defaultSecondaryColor,
     };
-    const updateCount = await settingsServiceClient.updateSettingsById(payload);
-    if (updateCount > 0) {
+    const updateResult =
+      await settingsServiceClient.updateSettingsById(payload);
+    if (updateResult.success) {
       // Update local state with the new values
       setSettingAppearance((prev) => ({ ...prev, ...payload }));
       toast.success("Settings updated successfully");

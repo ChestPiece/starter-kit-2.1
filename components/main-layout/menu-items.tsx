@@ -22,7 +22,8 @@ export const getNavData = (user: { roles?: string }) => {
     },
   ];
 
-  const adminNavMain = [
+  // Navigation for managers - includes settings but not admin area
+  const managerNavMain = [
     ...navMain,
     {
       title: "Other",
@@ -35,6 +36,11 @@ export const getNavData = (user: { roles?: string }) => {
         },
       ],
     },
+  ];
+
+  // Navigation for admins - includes settings and admin area
+  const adminNavMain = [
+    ...managerNavMain,
     {
       title: "Admin Area",
       url: "#",
@@ -56,6 +62,6 @@ export const getNavData = (user: { roles?: string }) => {
     user.roles === UserRoles.MANAGER || user.roles?.includes(UserRoles.MANAGER);
 
   return {
-    navMain: isAdmin ? adminNavMain : navMain,
+    navMain: isAdmin ? adminNavMain : isManager ? managerNavMain : navMain,
   };
 };

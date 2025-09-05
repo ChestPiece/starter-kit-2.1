@@ -9,7 +9,19 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { useRouter } from "next/navigation";
-import { Settings } from "@/modules/settings/models/setting";
+import { Settings } from "@/modules/settings";
+
+// Function to handle image loading errors
+const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+  console.log("Image failed to load, using fallback");
+  // Use the environment variable for logo if available, otherwise use our fallback
+  const fallbackLogo =
+    process.env.NEXT_PUBLIC_SITE_LOGO ||
+    process.env.NEXT_PUBLIC_LOGO_URL ||
+    "/fallback-logo.svg";
+  e.currentTarget.src = fallbackLogo;
+  e.currentTarget.onerror = null; // Prevent infinite fallback loop
+};
 
 export function TeamSwitcher({
   teams,
@@ -53,6 +65,7 @@ export function TeamSwitcher({
                       ""
                     }
                     className="object-cover w-full h-full"
+                    onError={handleImageError}
                   />
                 </div>
                 <div className="grid flex-1 text-left text-base leading-tight">
@@ -78,6 +91,7 @@ export function TeamSwitcher({
                     ""
                   }
                   className="object-contain w-full h-full"
+                  onError={handleImageError}
                 />
               </div>
             )}

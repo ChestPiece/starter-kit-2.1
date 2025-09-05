@@ -15,6 +15,13 @@ export const clearAuthSession = async () => {
     localStorage.removeItem('signup_email');
     localStorage.removeItem('sb-supabase-auth-token');
     
+    // Clear any Supabase-related localStorage keys
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('sb-') || key.includes('supabase')) {
+        localStorage.removeItem(key);
+      }
+    });
+    
     // Clear session storage
     sessionStorage.clear();
     
@@ -45,3 +52,4 @@ export const forceLogoutAndRedirect = () => {
   // Force redirect
   window.location.href = '/auth/login';
 };
+

@@ -143,6 +143,8 @@ export default function Verify() {
   const handleResendConfirmation = async () => {
     // Try to get email from state or localStorage
     const emailToUse = userEmail || localStorage.getItem("signup_email");
+    const firstName = localStorage.getItem("signup_firstName");
+    const lastName = localStorage.getItem("signup_lastName");
 
     if (!emailToUse) {
       toast.error("No email address found. Please try signing up again.");
@@ -151,7 +153,10 @@ export default function Verify() {
 
     setIsResending(true);
     try {
-      await emailAuthService.sendEmailConfirmation(emailToUse);
+      await emailAuthService.sendEmailConfirmation(emailToUse, {
+        firstName,
+        lastName,
+      });
       toast.success("Confirmation email sent! Please check your inbox.");
       setMessage(
         "A new confirmation email has been sent. Please check your inbox."
@@ -161,71 +166,6 @@ export default function Verify() {
       toast.error("Failed to resend confirmation email. Please try again.");
     } finally {
       setIsResending(false);
-    }
-  };
-
-  const getStatusIcon = () => {
-    switch (state) {
-      case "checking":
-        return (
-          <div className="flex items-center justify-center w-16 h-16 mx-auto mb-4 bg-blue-100 rounded-full">
-            <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-          </div>
-        );
-      case "verified":
-        return (
-          <div className="flex items-center justify-center w-16 h-16 mx-auto mb-4 bg-green-100 rounded-full">
-            <svg
-              className="w-8 h-8 text-green-600"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M5 13l4 4L19 7"
-              />
-            </svg>
-          </div>
-        );
-      case "error":
-        return (
-          <div className="flex items-center justify-center w-16 h-16 mx-auto mb-4 bg-red-100 rounded-full">
-            <svg
-              className="w-8 h-8 text-red-600"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
-          </div>
-        );
-      default:
-        return (
-          <div className="flex items-center justify-center w-16 h-16 mx-auto mb-4 bg-yellow-100 rounded-full">
-            <svg
-              className="w-8 h-8 text-yellow-600"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M3 8l7.89 7.89a2 2 0 002.83 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-              />
-            </svg>
-          </div>
-        );
     }
   };
 
@@ -242,20 +182,6 @@ export default function Verify() {
 
   return (
     <div className="max-w-md w-full space-y-8 p-8 bg-sidebar rounded-lg shadow border border-sidebar-border">
-      <div className="text-center">
-        {getStatusIcon()}
-        <h2 className="text-3xl font-extrabold text-primary">
-          Email Verification
-        </h2>
-        <p className={`mt-4 text-sm ${getMessageColor()}`}>{message}</p>
-
-        {state === "verified" && countdown !== null && (
-          <p className="mt-2 text-xs text-gray-500">
-            Redirecting to login in {countdown} seconds...
-          </p>
-        )}
-      </div>
-
       {(state === "pending" || state === "error") && (
         <div className="text-center space-y-4">
           {userEmail && (

@@ -13,3 +13,6 @@ export const createAdminClient = () => {
     }
   );
 };
+
+// Create a singleton instance of the admin client
+export const supabaseAdmin = createAdminClient();

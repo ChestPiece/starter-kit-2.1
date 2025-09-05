@@ -1,6 +1,6 @@
 "use client";
-import { useId, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useId, useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { Label } from "@/components/label";
@@ -12,6 +12,7 @@ import { useAuthLayoutContext } from "@/context/AuthLayoutContext";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { generateNameAvatar } from "@/utils/generateRandomAvatar";
+import { getSupabaseClient } from "@/lib/supabase/client";
 
 export default function Login() {
   const id = useId();
@@ -20,8 +21,61 @@ export default function Login() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isImageLoading, setIsImageLoading] = useState(true);
+  // Remove processingCode state since we're not showing loading UI
+  const [verificationSuccess, setVerificationSuccess] = useState(false);
   const { signIn } = useAuth();
   const { settings } = useAuthLayoutContext();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  // Handle authentication code from URL if present
+  useEffect(() => {
+    const code = searchParams.get("code");
+    const type = searchParams.get("type");
+    const next = searchParams.get("next");
+    const verified = searchParams.get("verified");
+
+    // Handle the case when redirected back from /api/auth/callback with verified=true
+    if (verified === "true") {
+      setVerificationSuccess(true);
+      console.log("User verification was successful");
+
+      // If this is a signup verification, show success message
+      if (type === "signup") {
+        console.log("This is a signup verification, showing success message");
+        // Give user a moment to see success message
+        setTimeout(() => {
+          if (next && next !== "/auth/verify") {
+            console.log("Redirecting to next:", next);
+            router.push(next);
+          }
+        }, 2000);
+      }
+      return;
+    }
+
+    // For non-verified states, let the API route handle the code exchange
+    if (code) {
+      // Redirect to the API callback route instead of handling it client-side
+      const callbackUrl = `/api/auth/callback?code=${code}${type ? `&type=${type}` : ""}${next ? `&next=${next}` : ""}`;
+      console.log("Redirecting to auth callback API route");
+
+      // Start the API verification process without showing any loading state
+      const redirectSilently = async () => {
+        try {
+          // This is a silent redirect - the page will be refreshed by the callback route
+          const result = await fetch(callbackUrl);
+          // No need to handle the response as the callback route will handle redirects
+        } catch (error) {
+          console.error("Error during verification process:", error);
+          // If there's an error, set verification success to false
+          setVerificationSuccess(false);
+        }
+      };
+
+      redirectSilently();
+    }
+  }, [searchParams, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,12 +86,16 @@ export default function Login() {
       const result = await signIn(email, password);
 
       // Check if user is verified before redirecting
-      const user = result?.user;
-      if (user && (user as any).email_confirmed_at) {
-        window.location.href = "/";
+      if (result && result.user) {
+        const user = result.user;
+        if (user.email_confirmed_at) {
+          window.location.href = "/";
+        } else {
+          // User is not verified, redirect to verify page
+          window.location.href = "/auth/verify";
+        }
       } else {
-        // User is not verified, redirect to verify page
-        window.location.href = "/auth/verify";
+        setError("Login failed");
       }
     } catch (error) {
       setIsLoading(false);
@@ -48,6 +106,9 @@ export default function Login() {
       );
     }
   };
+
+  // Don't show loading state for verification code processing
+  // We'll handle it silently in the background
 
   return (
     <div className="max-w-md w-full space-y-8 bg-sidebar hover:bg-sidebar-hover p-8 rounded-lg shadow">
@@ -86,11 +147,18 @@ export default function Login() {
           </div>
         ) : null}
         <h2 className="mt-3 text-center text-3xl font-extrabold text-gray-900 dark:text-white">
-          Welcome Back
+          {verificationSuccess ? "Email Verified!" : "Welcome Back"}
         </h2>
-        <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
-          Enter your credentials to login to your account.
-        </p>
+        {verificationSuccess ? (
+          <div className="text-green-600 dark:text-green-400 text-sm text-center mt-2 p-2 bg-green-50 dark:bg-green-900/20 rounded-md">
+            Your email has been successfully verified! You can now log in to
+            your account.
+          </div>
+        ) : (
+          <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
+            Enter your credentials to login to your account.
+          </p>
+        )}
       </div>
 
       <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
@@ -161,6 +229,8 @@ export default function Login() {
           Don't have an account?{" "}
           <Link
             href="/auth/signup"
+            prefetch={true}
+            replace={true}
             className="text-primary hover:underline cursor-pointer"
           >
             Sign up
