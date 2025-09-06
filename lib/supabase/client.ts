@@ -23,7 +23,7 @@ export function createClient(forceNew = false) {
       auth: {
         persistSession: true,
         autoRefreshToken: true,
-        detectSessionInUrl: true,
+        detectSessionInUrl: false, // Disable automatic session detection from URL
       }
     }
   )

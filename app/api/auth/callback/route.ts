@@ -73,6 +73,13 @@ export async function GET(request: NextRequest) {
         if (user.email_confirmed_at) {
           console.log(`[AUTH_CALLBACK:${requestId}] User is verified, checking if profile exists`);
           
+          // Sign out the user immediately after verification to prevent auto-login
+          // This will force them to log in again manually after verification
+          if (type === "signup" || type === "email_change") {
+            await supabase.auth.signOut();
+            console.log(`[AUTH_CALLBACK:${requestId}] Signed out user after verification to prevent auto-login`);
+          }
+          
           // Ensure user exists in our database
           try {
             let userProfile = null;
@@ -197,7 +204,7 @@ export async function GET(request: NextRequest) {
           
           // Clear signup email from any stored location
           console.log(`[AUTH_CALLBACK:${requestId}] Verification complete, redirecting to ${next} with verified=true`);
-          const response = NextResponse.redirect(`${origin}${next}?verified=true`)
+          const response = NextResponse.redirect(`${origin}${next}?verified=true&manualLogin=required`)
           return response
         }
       }

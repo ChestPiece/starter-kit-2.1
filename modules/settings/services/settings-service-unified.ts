@@ -1,10 +1,17 @@
 /**
  * Unified Settings Service
- * Uses BaseService for consistent error handling and client management
- * Replaces both setting-service.ts and setting-service-client.ts
+ * 
+ * This service centralizes all settings-related database operations using BaseService
+ * for consistent error handling, response structures, and client management.
+ * 
+ * It uses a functional approach with direct function exports.
  */
 
 import { baseService, type ServiceResponse, type ClientEnvironment } from '@/lib/BaseService';
+
+// Constants
+const TABLE_NAME = 'settings';
+const SETTINGS_ID = 1; // Settings uses a fixed ID
 
 // Settings types
 export interface Settings {
@@ -37,265 +44,266 @@ export interface UpdateSettingsData {
 }
 
 /**
- * Unified Settings Service Class
+ * Get default settings configuration
  */
-export class SettingsService {
-  private static instance: SettingsService;
-  private readonly tableName = 'settings';
-  private readonly settingsId = 1; // Settings uses a fixed ID
+function getDefaultSettings(): Settings {
+  return {
+    id: SETTINGS_ID,
+    site_name: process.env.NEXT_PUBLIC_SITE_NAME || "Starter Kit",
+    logo_url: process.env.NEXT_PUBLIC_SITE_LOGO || "/favicon.ico",
+    logo_horizontal_url: process.env.NEXT_PUBLIC_SITE_LOGO || "/favicon.ico",
+    favicon_url: process.env.NEXT_PUBLIC_SITE_LOGO || "/favicon.ico",
+    logo_setting: "square",
+    primary_color: "#3b82f6",
+    secondary_color: "#1e40af",
+    appearance_theme: "light",
+    site_description: "Starter Kit Application",
+    contact_email: "support@example.com",
+  };
+}
 
-  private constructor() {}
+/**
+ * Insert new settings (internal use)
+ * 
+ * @param insertData - Settings data to insert
+ * @param options - Options including environment (client/server/admin)
+ */
+export async function insertSettings(
+  insertData: Settings,
+  options?: { environment?: ClientEnvironment }
+): Promise<ServiceResponse<Settings>> {
+  return await baseService.create<Settings>(
+    TABLE_NAME,
+    insertData,
+    { environment: options?.environment }
+  );
+}
 
-  public static getInstance(): SettingsService {
-    if (!SettingsService.instance) {
-      SettingsService.instance = new SettingsService();
-    }
-    return SettingsService.instance;
-  }
-
-  /**
-   * Get default settings configuration
-   */
-  private getDefaultSettings(): Settings {
-    return {
-      id: this.settingsId,
-      site_name: process.env.NEXT_PUBLIC_SITE_NAME || "Starter Kit",
-      logo_url: process.env.NEXT_PUBLIC_SITE_LOGO || "/favicon.ico",
-      logo_horizontal_url: process.env.NEXT_PUBLIC_SITE_LOGO || "/favicon.ico",
-      favicon_url: process.env.NEXT_PUBLIC_SITE_LOGO || "/favicon.ico",
-      logo_setting: "square",
-      primary_color: "#3b82f6",
-      secondary_color: "#1e40af",
-      appearance_theme: "light",
-      site_description: "Starter Kit Application",
-      contact_email: "support@example.com",
-    };
-  }
-
-  /**
-   * Get settings by ID (always returns settings for ID 1)
-   */
-  async getSettingsById(
-    options?: { environment?: ClientEnvironment }
-  ): Promise<ServiceResponse<Settings>> {
-    try {
-      // First try to get existing settings
-      const result = await baseService.readById<Settings>(
-        this.tableName,
-        this.settingsId.toString(),
-        {
-          environment: options?.environment,
-        }
-      );
-
-      if (result.success && result.data) {
-        return result as ServiceResponse<Settings>;
-      }
-
-      // If no settings exist, try to create default settings
-      const defaultSettings = this.getDefaultSettings();
-      
-      try {
-        const createResult = await this.insertSettings(defaultSettings, options);
-        if (createResult.success && createResult.data) {
-          return createResult;
-        }
-      } catch (insertError: any) {
-        // If it's an RLS policy error, just return the default settings
-        if (insertError?.code === '42501' || 
-            insertError?.message?.includes('row-level security policy')) {
-          return {
-            success: true,
-            data: defaultSettings,
-            meta: {
-              requestId: `fallback_${Date.now()}`,
-            }
-          };
-        }
-      }
-
-      // Return default settings as fallback
-      return {
-        success: true,
-        data: defaultSettings,
-        meta: {
-          requestId: `fallback_${Date.now()}`,
-        }
-      };
-    } catch (error: any) {
-      return {
-        success: false,
-        error: {
-          code: 'SETTINGS_FETCH_ERROR',
-          message: error?.message || 'Failed to fetch settings',
-          details: error,
-        }
-      };
-    }
-  }
-
-  /**
-   * Update settings by ID
-   */
-  async updateSettingsById(
-    updateData: UpdateSettingsData,
-    options?: { environment?: ClientEnvironment }
-  ): Promise<ServiceResponse<Settings>> {
-    // Remove undefined values
-    const cleanedData: any = {};
-    Object.entries(updateData).forEach(([key, value]) => {
-      if (value !== undefined) {
-        cleanedData[key] = value;
-      }
-    });
-
-    const result = await baseService.update<Settings>(
-      this.tableName,
-      this.settingsId.toString(),
-      cleanedData,
-      {
-        environment: options?.environment,
-      }
+/**
+ * Get settings by ID (always returns settings for ID 1)
+ * 
+ * @param options - Options including environment (client/server/admin)
+ */
+export async function getSettingsById(
+  options?: { environment?: ClientEnvironment }
+): Promise<ServiceResponse<Settings>> {
+  try {
+    // First try to get existing settings
+    const result = await baseService.readById<Settings>(
+      TABLE_NAME,
+      SETTINGS_ID.toString(),
+      { environment: options?.environment }
     );
 
-    if (!result.success) {
+    if (result.success && result.data) {
       return result;
     }
 
-    return result;
-  }
-
-  /**
-   * Insert new settings (internal use)
-   */
-  async insertSettings(
-    insertData: Settings,
-    options?: { environment?: ClientEnvironment }
-  ): Promise<ServiceResponse<Settings>> {
-    return await baseService.create<Settings>(
-      this.tableName,
-      insertData,
-      {
-        environment: options?.environment,
+    // If no settings exist, try to create default settings
+    const defaultSettings = getDefaultSettings();
+    
+    try {
+      const createResult = await insertSettings(defaultSettings, options);
+      if (createResult.success && createResult.data) {
+        return createResult;
       }
-    );
-  }
-
-  /**
-   * Reset settings to default values
-   */
-  async resetToDefaults(
-    options?: { environment?: ClientEnvironment }
-  ): Promise<ServiceResponse<Settings>> {
-    const defaultSettings = this.getDefaultSettings();
-    const { id, ...updateData } = defaultSettings;
-    
-    return await this.updateSettingsById(updateData, options);
-  }
-
-  /**
-   * Update theme settings
-   */
-  async updateTheme(
-    themeData: {
-      primary_color?: string;
-      secondary_color?: string;
-      appearance_theme?: 'light' | 'dark' | 'system';
-    },
-    options?: { environment?: ClientEnvironment }
-  ): Promise<ServiceResponse<Settings>> {
-    return await this.updateSettingsById(themeData, options);
-  }
-
-  /**
-   * Update site branding
-   */
-  async updateBranding(
-    brandingData: {
-      site_name?: string;
-      logo_url?: string;
-      logo_horizontal_url?: string;
-      favicon_url?: string;
-      logo_setting?: 'square' | 'horizontal';
-      site_description?: string;
-    },
-    options?: { environment?: ClientEnvironment }
-  ): Promise<ServiceResponse<Settings>> {
-    return await this.updateSettingsById(brandingData, options);
-  }
-
-  /**
-   * Update contact information
-   */
-  async updateContact(
-    contactData: {
-      contact_email?: string;
-    },
-    options?: { environment?: ClientEnvironment }
-  ): Promise<ServiceResponse<Settings>> {
-    return await this.updateSettingsById(contactData, options);
-  }
-
-  /**
-   * Get current theme configuration
-   */
-  async getThemeConfig(
-    options?: { environment?: ClientEnvironment }
-  ): Promise<ServiceResponse<{
-    primary_color: string;
-    secondary_color: string;
-    appearance_theme: string;
-  }>> {
-    const result = await this.getSettingsById(options);
-    
-    if (!result.success || !result.data) {
-      return result as ServiceResponse<any>;
+    } catch (insertError: any) {
+      // If it's an RLS policy error, just return the default settings
+      if (insertError?.code === '42501' || 
+          insertError?.message?.includes('row-level security policy')) {
+        return {
+          success: true,
+          data: defaultSettings,
+          meta: {
+            requestId: `fallback_${Date.now()}`,
+          }
+        };
+      }
     }
 
+    // Return default settings as fallback
     return {
       success: true,
-      data: {
-        primary_color: result.data.primary_color,
-        secondary_color: result.data.secondary_color,
-        appearance_theme: result.data.appearance_theme,
-      },
-      meta: result.meta,
-    };
-  }
-
-  /**
-   * Check if settings are configured (not using defaults)
-   */
-  async isConfigured(
-    options?: { environment?: ClientEnvironment }
-  ): Promise<ServiceResponse<boolean>> {
-    const result = await baseService.readById<Settings>(
-      this.tableName,
-      this.settingsId.toString(),
-      {
-        environment: options?.environment,
+      data: defaultSettings,
+      meta: {
+        requestId: `fallback_${Date.now()}`,
       }
-    );
-
+    };
+  } catch (error: any) {
     return {
-      success: true,
-      data: result.success && !!result.data,
-      meta: result.meta,
+      success: false,
+      error: {
+        code: 'SETTINGS_FETCH_ERROR',
+        message: error?.message || 'Failed to fetch settings',
+        details: error,
+      }
     };
   }
 }
 
-// Export singleton instance
-export const settingsServiceUnified = SettingsService.getInstance();
+/**
+ * Update settings by ID
+ * 
+ * @param updateData - Settings data to update
+ * @param options - Options including environment (client/server/admin)
+ */
+export async function updateSettingsById(
+  updateData: UpdateSettingsData,
+  options?: { environment?: ClientEnvironment }
+): Promise<ServiceResponse<Settings>> {
+  // Remove undefined values
+  const cleanedData: any = {};
+  Object.entries(updateData).forEach(([key, value]) => {
+    if (value !== undefined) {
+      cleanedData[key] = value;
+    }
+  });
+
+  return await baseService.update<Settings>(
+    TABLE_NAME,
+    SETTINGS_ID.toString(),
+    cleanedData,
+    { environment: options?.environment }
+  );
+}
+
+/**
+ * Reset settings to default values
+ * 
+ * @param options - Options including environment (client/server/admin)
+ */
+export async function resetToDefaults(
+  options?: { environment?: ClientEnvironment }
+): Promise<ServiceResponse<Settings>> {
+  const defaultSettings = getDefaultSettings();
+  const { id, ...updateData } = defaultSettings;
+  
+  return await updateSettingsById(updateData, options);
+}
+
+/**
+ * Update theme settings
+ * 
+ * @param themeData - Theme data to update
+ * @param options - Options including environment (client/server/admin)
+ */
+export async function updateTheme(
+  themeData: {
+    primary_color?: string;
+    secondary_color?: string;
+    appearance_theme?: 'light' | 'dark' | 'system';
+  },
+  options?: { environment?: ClientEnvironment }
+): Promise<ServiceResponse<Settings>> {
+  return await updateSettingsById(themeData, options);
+}
+
+/**
+ * Update site branding
+ * 
+ * @param brandingData - Branding data to update
+ * @param options - Options including environment (client/server/admin)
+ */
+export async function updateBranding(
+  brandingData: {
+    site_name?: string;
+    logo_url?: string;
+    logo_horizontal_url?: string;
+    favicon_url?: string;
+    logo_setting?: 'square' | 'horizontal';
+    site_description?: string;
+  },
+  options?: { environment?: ClientEnvironment }
+): Promise<ServiceResponse<Settings>> {
+  return await updateSettingsById(brandingData, options);
+}
+
+/**
+ * Update contact information
+ * 
+ * @param contactData - Contact data to update
+ * @param options - Options including environment (client/server/admin)
+ */
+export async function updateContact(
+  contactData: {
+    contact_email?: string;
+  },
+  options?: { environment?: ClientEnvironment }
+): Promise<ServiceResponse<Settings>> {
+  return await updateSettingsById(contactData, options);
+}
+
+/**
+ * Get current theme configuration
+ * 
+ * @param options - Options including environment (client/server/admin)
+ */
+export async function getThemeConfig(
+  options?: { environment?: ClientEnvironment }
+): Promise<ServiceResponse<{
+  primary_color: string;
+  secondary_color: string;
+  appearance_theme: string;
+}>> {
+  const result = await getSettingsById(options);
+  
+  if (!result.success || !result.data) {
+    return result as ServiceResponse<any>;
+  }
+
+  return {
+    success: true,
+    data: {
+      primary_color: result.data.primary_color,
+      secondary_color: result.data.secondary_color,
+      appearance_theme: result.data.appearance_theme,
+    },
+    meta: result.meta,
+  };
+}
+
+/**
+ * Check if settings are configured (not using defaults)
+ * 
+ * @param options - Options including environment (client/server/admin)
+ */
+export async function isConfigured(
+  options?: { environment?: ClientEnvironment }
+): Promise<ServiceResponse<boolean>> {
+  const result = await baseService.readById<Settings>(
+    TABLE_NAME,
+    SETTINGS_ID.toString(),
+    { environment: options?.environment }
+  );
+
+  return {
+    success: true,
+    data: result.success && !!result.data,
+    meta: result.meta,
+  };
+}
+
+// Export all functions directly
+export const settingsServiceUnified = {
+  getSettingsById,
+  updateSettingsById,
+  insertSettings,
+  resetToDefaults,
+  updateTheme,
+  updateBranding,
+  updateContact,
+  getThemeConfig,
+  isConfigured
+};
 
 // Export legacy functions for backward compatibility
 export const settingsService = {
   getSettingsById: (environment?: ClientEnvironment) => 
-    settingsServiceUnified.getSettingsById({ environment }),
+    getSettingsById({ environment }),
   updateSettingsById: (updateData: UpdateSettingsData, environment?: ClientEnvironment) => 
-    settingsServiceUnified.updateSettingsById(updateData, { environment }),
+    updateSettingsById(updateData, { environment }),
   insertSettings: (insertData: Settings, environment?: ClientEnvironment) => 
-    settingsServiceUnified.insertSettings(insertData, { environment }),
+    insertSettings(insertData, { environment }),
 };
 
 // Client service compatibility

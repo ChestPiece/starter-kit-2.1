@@ -624,17 +624,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   //   // Middleware will handle all routing logic
   // };
 
-  const signUp = async (data: AuthSignupData) => {
+  const signUp = async (data: AuthSignupData): Promise<AuthResponse | null> => {
     const result = await authService.signUp(data);
     // Supabase auth state listener will handle setting user state
-    return result;
+    return result || null; // Ensure we return null instead of undefined
   };
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = async (
+    email: string,
+    password: string
+  ): Promise<AuthResponse | null> => {
     try {
       const result = await authService.signIn(email, password);
       // Supabase auth state listener will handle setting user state
-      return result;
+      return result || null; // Ensure we return null instead of undefined
     } catch (error) {
       console.error("Sign in error:", error);
       throw error;
@@ -644,23 +647,38 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const signOut = async () => {
     try {
       setLoading(true);
-      // Use the more thorough clear auth session utility
-      const { clearAuthSession } = await import("@/utils/clear-auth-session");
-      await clearAuthSession();
-
-      // These will run only if clearAuthSession doesn't redirect
+      // Clear session state immediately to prevent UI issues
       setSession(null);
       setUser(null);
       setUserProfile(null);
+
+      // Sign out from Supabase auth
+      await authService.signOut();
+
+      // Clear any local storage items related to auth
+      localStorage.removeItem("signup_email");
+      localStorage.removeItem("sb-supabase-auth-token");
+
+      // Clear any Supabase-related localStorage keys
+      Object.keys(localStorage).forEach((key) => {
+        if (key.startsWith("sb-") || key.includes("supabase")) {
+          localStorage.removeItem(key);
+        }
+      });
+
+      // Reset loading state
       setLoading(false);
+
       return;
     } catch (error) {
+      // Make sure loading state is reset even if there's an error
       setLoading(false);
-      console.error("Sign out error:", error);
+      setSession(null);
+      setUser(null);
+      setUserProfile(null);
 
-      // As a last resort, force a redirect
-      window.location.href = "/auth/login";
-      throw error;
+      console.error("Sign out error:", error);
+      return;
     }
   };
 

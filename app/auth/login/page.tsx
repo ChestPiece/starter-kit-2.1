@@ -35,22 +35,17 @@ export default function Login() {
     const next = searchParams.get("next");
     const verified = searchParams.get("verified");
 
-    // Handle the case when redirected back from /api/auth/callback with verified=true
+    // Handle the case when redirected back from verify page or auth callback with verified=true
     if (verified === "true") {
       setVerificationSuccess(true);
       console.log("User verification was successful");
 
-      // If this is a signup verification, show success message
-      if (type === "signup") {
-        console.log("This is a signup verification, showing success message");
-        // Give user a moment to see success message
-        setTimeout(() => {
-          if (next && next !== "/auth/verify") {
-            console.log("Redirecting to next:", next);
-            router.push(next);
-          }
-        }, 2000);
-      }
+      // Clear any verification-related localStorage data
+      localStorage.removeItem("signup_email");
+      localStorage.removeItem("signup_firstName");
+      localStorage.removeItem("signup_lastName");
+
+      // Show success message and let user proceed with login
       return;
     }
 
@@ -150,7 +145,21 @@ export default function Login() {
           {verificationSuccess ? "Email Verified!" : "Welcome Back"}
         </h2>
         {verificationSuccess ? (
-          <div className="text-green-600 dark:text-green-400 text-sm text-center mt-2 p-2 bg-green-50 dark:bg-green-900/20 rounded-md">
+          <div className="text-green-600 dark:text-green-400 text-sm text-center mt-2 p-3 bg-green-50 dark:bg-green-900/20 rounded-md border border-green-200 dark:border-green-800 shadow-sm">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-5 w-5 mx-auto mb-1"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M5 13l4 4L19 7"
+              />
+            </svg>
             Your email has been successfully verified! You can now log in to
             your account.
           </div>

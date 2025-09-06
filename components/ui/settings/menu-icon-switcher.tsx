@@ -3,7 +3,8 @@
 import * as React from "react"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import Image from "next/image"
-import { Settings } from "@/modules/settings/models/setting"
+// import { Settings } from "@/modules/settings/models/setting"
+import { Settings } from "@/modules/settings"
 export function LogoTypeToggle({
   settings,
   value,

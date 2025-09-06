@@ -46,11 +46,19 @@ next-env.d.ts
 
 # IDE and editor files
 .cursor/
+.cursorignore
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+
+# Editor history/state files
+*.history/
+.history/
+*.code-workspace
+*.sublime-workspace
+*.sublime-project
 
 # OS generated files
 .DS_Store

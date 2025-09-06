@@ -2,12 +2,29 @@
 .branches
 .temp
 
-# dotenvx
+# Environment variables
+.env
 .env.keys
 .env.local
 .env.*.local
 
-# Supabase
-.branches
-.temp
-.env
+# IDE specific files
+.idea/
+.vscode/
+.cursor/
+.cursorignore
+
+# System files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

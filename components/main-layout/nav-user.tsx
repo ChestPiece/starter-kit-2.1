@@ -94,13 +94,13 @@ export function NavUser({ user }: { user: User | null }) {
                 className="cursor-pointer"
                 onClick={async () => {
                   try {
-                    const { clearAuthSession } = await import(
-                      "@/utils/clear-auth-session"
-                    );
-                    await clearAuthSession();
+                    // Use signOut first to update the auth state
+                    await signOut();
+                    // Then redirect to login page
+                    window.location.href = "/auth/login";
                   } catch (error) {
                     console.error("Logout error:", error);
-                    await signOut();
+                    // Fallback to direct redirect
                     window.location.href = "/auth/login";
                   }
                 }}

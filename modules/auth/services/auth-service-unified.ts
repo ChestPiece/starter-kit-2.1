@@ -1,3 +1,13 @@
+/**
+ * Unified Auth Service
+ * 
+ * This service centralizes all authentication operations with consistent error handling
+ * and response structures. It uses a functional approach with direct function exports.
+ * 
+ * Note: Auth operations use Supabase Auth directly as they're not database operations,
+ * but we still provide a consistent interface and error handling.
+ */
+
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -33,21 +43,14 @@ export interface AuthResponse {
   } | null;
 }
 
-export interface PasswordResetRequest {
-  email: string;
-  type: "user" | "developer";
-}
-
-export interface PasswordResetData {
-  token: string;
-  newPassword: string;
-  type: "user" | "developer";
-}
-
-export interface InviteUserData {
-  email: string;
-  role_id?: string;
-  metadata?: any;
+export interface ServiceResponse<T> {
+  success: boolean;
+  data?: T;
+  error?: {
+    code: string;
+    message: string;
+    details?: any;
+  };
 }
 
 /* ============================================================
@@ -64,14 +67,32 @@ function getClient(type: 'client' | 'server' | 'admin' = 'client'): SupabaseClie
   return getSupabaseClient();
 }
 
+/**
+ * Standardized error handler
+ */
+function handleError(error: any, operation: string): ServiceResponse<any> {
+  return {
+    success: false,
+    error: {
+      code: error?.code || "AUTH_ERROR",
+      message: error?.message || `An unexpected error occurred during ${operation}`,
+      details: error
+    }
+  };
+}
+
 /* ============================================================
    Auth Service Functions
 ============================================================ */
 
 /**
  * Sign up a new user
+ * 
+ * @param signupData - User signup data including email and password
  */
-export async function signUp(signupData: AuthSignupData): Promise<AuthResponse | null> {
+export async function signUp(
+  signupData: AuthSignupData
+): Promise<ServiceResponse<AuthResponse>> {
   try {
     const client = getClient('client');
     const { data, error } = await client.auth.signUp({
@@ -88,21 +109,28 @@ export async function signUp(signupData: AuthSignupData): Promise<AuthResponse |
     });
 
     if (error) {
-      console.error('Sign up error:', error);
-      return null;
+      return handleError(error, "signup");
     }
 
-    return data as AuthResponse;
+    return {
+      success: true,
+      data: data as AuthResponse
+    };
   } catch (error) {
-    console.error('Unexpected error during signup:', error);
-    return null;
+    return handleError(error, "signup");
   }
 }
 
 /**
  * Sign in with email and password
+ * 
+ * @param email - User email
+ * @param password - User password
  */
-export async function signIn(email: string, password: string): Promise<AuthResponse | null> {
+export async function signIn(
+  email: string, 
+  password: string
+): Promise<ServiceResponse<AuthResponse>> {
   try {
     const client = getClient('client');
     const { data, error } = await client.auth.signInWithPassword({
@@ -111,41 +139,47 @@ export async function signIn(email: string, password: string): Promise<AuthRespo
     });
 
     if (error) {
-      console.error('Sign in error:', error);
-      return null;
+      return handleError(error, "sign-in");
     }
 
-    return data as AuthResponse;
+    return {
+      success: true,
+      data: data as AuthResponse
+    };
   } catch (error) {
-    console.error('Unexpected error during sign in:', error);
-    return null;
+    return handleError(error, "sign-in");
   }
 }
 
 /**
  * Sign out the current user
  */
-export async function signOut(): Promise<boolean> {
+export async function signOut(): Promise<ServiceResponse<boolean>> {
   try {
     const client = getClient('client');
     const { error } = await client.auth.signOut();
 
     if (error) {
-      console.error('Sign out error:', error);
-      return false;
+      return handleError(error, "sign-out");
     }
 
-    return true;
+    return {
+      success: true,
+      data: true
+    };
   } catch (error) {
-    console.error('Unexpected error during sign out:', error);
-    return false;
+    return handleError(error, "sign-out");
   }
 }
 
 /**
  * Send password reset email
+ * 
+ * @param email - Email address to send reset link to
  */
-export async function sendPasswordResetEmail(email: string): Promise<boolean> {
+export async function sendPasswordResetEmail(
+  email: string
+): Promise<ServiceResponse<boolean>> {
   try {
     const client = getClient('client');
     const { error } = await client.auth.resetPasswordForEmail(email, {
@@ -153,21 +187,26 @@ export async function sendPasswordResetEmail(email: string): Promise<boolean> {
     });
 
     if (error) {
-      console.error('Password reset error:', error);
-      return false;
+      return handleError(error, "password-reset");
     }
 
-    return true;
+    return {
+      success: true,
+      data: true
+    };
   } catch (error) {
-    console.error('Unexpected error during password reset:', error);
-    return false;
+    return handleError(error, "password-reset");
   }
 }
 
 /**
  * Reset password with token
+ * 
+ * @param newPassword - New password to set
  */
-export async function resetPassword(newPassword: string): Promise<boolean> {
+export async function resetPassword(
+  newPassword: string
+): Promise<ServiceResponse<boolean>> {
   try {
     const client = getClient('client');
     const { error } = await client.auth.updateUser({
@@ -175,90 +214,65 @@ export async function resetPassword(newPassword: string): Promise<boolean> {
     });
 
     if (error) {
-      console.error('Password update error:', error);
-      return false;
+      return handleError(error, "password-update");
     }
 
-    return true;
+    return {
+      success: true,
+      data: true
+    };
   } catch (error) {
-    console.error('Unexpected error during password update:', error);
-    return false;
+    return handleError(error, "password-update");
   }
 }
 
 /**
  * Get current session
  */
-export async function getSession() {
+export async function getSession(): Promise<ServiceResponse<any>> {
   try {
     const client = getClient('client');
     const { data, error } = await client.auth.getSession();
 
     if (error) {
-      console.error('Get session error:', error);
-      return null;
+      return handleError(error, "get-session");
     }
 
-    return data.session;
+    return {
+      success: true,
+      data: data.session
+    };
   } catch (error) {
-    console.error('Unexpected error getting session:', error);
-    return null;
+    return handleError(error, "get-session");
   }
 }
 
 /**
  * Get current user
  */
-export async function getUser() {
+export async function getUser(): Promise<ServiceResponse<any>> {
   try {
     const client = getClient('client');
     const { data, error } = await client.auth.getUser();
 
     if (error) {
-      console.error('Get user error:', error);
-      return null;
+      return handleError(error, "get-user");
     }
 
-    return data.user;
+    return {
+      success: true,
+      data: data.user
+    };
   } catch (error) {
-    console.error('Unexpected error getting user:', error);
-    return null;
+    return handleError(error, "get-user");
   }
 }
 
-/**
- * Admin: Create invite
- */
-// export async function createInvite(email: string, role_id?: string): Promise<{ success: boolean; userId?: string }> {
-//   try {
-//     const admin = getClient('admin');
-    
-//     // Create a new user without password
-//     const { data, error } = await admin.auth.admin.createUser({
-//       email,
-//       email_confirm: false,
-//     });
-
-//     if (error) {
-//       console.error('Create invite error:', error);
-//       return { success: false };
-//     }
-
-//     return { 
-//       success: true, 
-//       userId: data.user.id
-//     };
-//   } catch (error) {
-//     console.error('Unexpected error creating invite:', error);
-//     return { success: false };
-//   }
-// }
-
 /* ============================================================
-   Unified service exports
+   Service exports
 ============================================================ */
 
-// Collect all functions for the unified service
+// Export all functions directly
 export const authServiceUnified = {
   signIn,
   signUp,
@@ -267,16 +281,36 @@ export const authServiceUnified = {
   resetPassword,
   getSession,
   getUser,
-  //createInvite,
 };
 
 // Legacy compatibility export
 export const authService = {
-  signIn,
-  signUp,
-  signOut,
-  sendPasswordResetEmail,
-  resetPassword,
-  getSession,
-  getUser,
+  signIn: async (email: string, password: string) => {
+    const result = await signIn(email, password);
+    return result.success ? result.data : null;
+  },
+  signUp: async (signupData: AuthSignupData) => {
+    const result = await signUp(signupData);
+    return result.success ? result.data : null;
+  },
+  signOut: async () => {
+    const result = await signOut();
+    return result.success;
+  },
+  sendPasswordResetEmail: async (email: string) => {
+    const result = await sendPasswordResetEmail(email);
+    return result.success;
+  },
+  resetPassword: async (newPassword: string) => {
+    const result = await resetPassword(newPassword);
+    return result.success;
+  },
+  getSession: async () => {
+    const result = await getSession();
+    return result.success ? result.data : null;
+  },
+  getUser: async () => {
+    const result = await getUser();
+    return result.success ? result.data : null;
+  },
 };

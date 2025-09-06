@@ -20,6 +20,7 @@ import Header from "./header";
 import { SearchForm } from "../search-form";
 import { TeamSwitcher } from "../ui/settings/app-side-bar-logo";
 import { Settings } from "@/modules/settings";
+import { UserRoles } from "@/types/types";
 import { RemixiconComponentType } from "@remixicon/react";
 import { LucideIcon } from "lucide-react";
 
@@ -65,6 +66,7 @@ export default function SideBarLayout({
 }) {
   const { userProfile } = useAuth();
   const [navItems, setNavItems] = useState<NavSection[]>([]);
+  const [filteredNavItems, setFilteredNavItems] = useState<NavSection[]>([]);
   const pathname = usePathname();
   const title = formatPathname(pathname);
 
@@ -100,8 +102,45 @@ export default function SideBarLayout({
     if (userProfile) {
       const navData = getNavData({ roles: userProfile?.roles?.name });
       setNavItems(navData.navMain as NavSection[]);
+      setFilteredNavItems(navData.navMain as NavSection[]); // Initialize filtered items
     }
   }, [userProfile]);
+
+  // Handle search functionality
+  const handleSearch = (searchTerm: string) => {
+    if (!searchTerm.trim()) {
+      // If search is empty, show all items
+      setFilteredNavItems([...navItems]);
+      return;
+    }
+
+    // Filter navigation items based on search term
+    const filtered = navItems
+      .map((section) => {
+        // First check if the section title matches
+        const sectionMatches = section.title
+          .toLowerCase()
+          .includes(searchTerm.toLowerCase());
+
+        // Then filter the items within the section
+        const filteredItems = section.items.filter((item) =>
+          item.title.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+
+        // Return the section if either the section title matches or there are matching items
+        if (sectionMatches || filteredItems.length > 0) {
+          return {
+            ...section,
+            items: filteredItems,
+          };
+        }
+
+        return null;
+      })
+      .filter(Boolean) as NavSection[];
+
+    setFilteredNavItems(filtered);
+  };
 
   if (!userProfile) return null;
 
@@ -112,11 +151,16 @@ export default function SideBarLayout({
           <SidebarHeader>
             <TeamSwitcher teams={data.teams} settings={settings} />
             <hr className="border-t border-border mx-2 -mt-px" />
-            <SearchForm className="mt-3" />
+            <SearchForm
+              className="mt-3"
+              userRole={userProfile?.roles?.name}
+              onSearch={handleSearch}
+              navItems={navItems}
+            />
           </SidebarHeader>
           <SidebarContent>
             <NavMain
-              items={navItems}
+              items={filteredNavItems}
               user={{
                 ...userProfile,
                 roles: { name: userProfile?.roles?.name || "" },
