@@ -84,10 +84,11 @@ export default function Login() {
       if (result && result.user) {
         const user = result.user;
         if (user.email_confirmed_at) {
-          window.location.href = "/";
+          // Force a direct navigation to root to bypass potential redirect issues
+          window.location.replace("/");
         } else {
           // User is not verified, redirect to verify page
-          window.location.href = "/auth/verify";
+          window.location.replace("/auth/verify");
         }
       } else {
         setError("Login failed");

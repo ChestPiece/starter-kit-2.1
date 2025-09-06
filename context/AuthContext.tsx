@@ -14,6 +14,7 @@ import {
   useState,
   useCallback,
   useMemo,
+  useRef,
 } from "react";
 import { Session, WeakPassword } from "@supabase/supabase-js";
 import { authService, AuthSignupData, AuthResponse } from "@/modules/auth";
@@ -60,6 +61,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const [initialized, setInitialized] = useState(false);
   const [settings, setSettings] = useState<Settings | null>(null);
+  const lastSessionHash = useRef<string>("no-user");
 
   const router = useRouter();
   const pathname = usePathname();
@@ -315,19 +317,40 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     const isAuthPage = PUBLIC_ROUTES.includes(pathname);
 
-    if (!user && !isAuthPage) {
-      // Not logged in and trying to access protected page
-      router.push("/auth/login");
-    } else if (user && isAuthPage && pathname !== "/auth/verify") {
-      // Logged in but on auth page (except verify)
-      router.push("/");
-    } else if (
-      user &&
-      !(user as any).email_confirmed_at &&
-      pathname !== "/auth/verify"
-    ) {
-      // User not verified
-      router.push("/auth/verify");
+    // Use a more controlled navigation approach to prevent loops
+    const navigateIfNeeded = async () => {
+      try {
+        if (!user && !isAuthPage) {
+          // Not logged in and trying to access protected page
+          console.log("[AUTH_ROUTE] Not logged in, redirecting to login");
+          router.push("/auth/login");
+        } else if (user && isAuthPage && pathname !== "/auth/verify") {
+          // Logged in but on auth page (except verify)
+          console.log(
+            "[AUTH_ROUTE] Already logged in on auth page, redirecting to home"
+          );
+          router.push("/");
+        } else if (
+          user &&
+          !(user as any).email_confirmed_at &&
+          pathname !== "/auth/verify"
+        ) {
+          // User not verified
+          console.log(
+            "[AUTH_ROUTE] Unverified user, redirecting to verify page"
+          );
+          router.push("/auth/verify");
+        }
+      } catch (error) {
+        console.error("[AUTH_ROUTE] Navigation error:", error);
+      }
+    };
+
+    // Only run navigation if the session state has actually changed
+    const sessionChangeHash = user?.id || "no-user";
+    if (sessionChangeHash !== lastSessionHash.current) {
+      lastSessionHash.current = sessionChangeHash;
+      navigateIfNeeded();
     }
   }, [user, pathname, initialized, loading, router, PUBLIC_ROUTES]);
 
